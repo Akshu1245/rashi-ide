@@ -4,25 +4,64 @@
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+  animation: fadeIn 0.4s ease-out;
+  position: relative;
+}
+
+.app::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(99, 102, 241, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.025) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 80%, rgba(59, 130, 246, 0.02) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+  animation: meshShift 20s ease-in-out infinite alternate;
+}
+
+@keyframes meshShift {
+  0% {
+    background:
+      radial-gradient(ellipse at 20% 50%, rgba(99, 102, 241, 0.03) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.025) 0%, transparent 50%),
+      radial-gradient(ellipse at 60% 80%, rgba(59, 130, 246, 0.02) 0%, transparent 50%);
+  }
+  50% {
+    background:
+      radial-gradient(ellipse at 40% 30%, rgba(99, 102, 241, 0.03) 0%, transparent 50%),
+      radial-gradient(ellipse at 70% 60%, rgba(139, 92, 246, 0.025) 0%, transparent 50%),
+      radial-gradient(ellipse at 30% 70%, rgba(59, 130, 246, 0.02) 0%, transparent 50%);
+  }
+  100% {
+    background:
+      radial-gradient(ellipse at 60% 40%, rgba(99, 102, 241, 0.03) 0%, transparent 50%),
+      radial-gradient(ellipse at 30% 70%, rgba(139, 92, 246, 0.025) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 50%, rgba(59, 130, 246, 0.02) 0%, transparent 50%);
+  }
 }
 
 .app-body {
-  display: flex;
   flex: 1;
   overflow: hidden;
+  position: relative;
+  z-index: 1;
 }
 
 .main-area {
-  flex: 1;
+  height: 100%;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border-right: 1px solid var(--border);
+  position: relative;
 }
 
 .right-area {
-  width: 45%;
-  min-width: 300px;
+  height: 100%;
   display: flex;
   flex-direction: column;
 }
@@ -30,32 +69,64 @@
 .panel-tabs {
   display: flex;
   gap: 0;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border);
+  background: rgba(var(--bg-secondary-rgb, 30, 30, 30), 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   padding: 0;
   flex-shrink: 0;
+  position: relative;
 }
 
 .tab {
-  padding: 8px 16px;
+  padding: 7px 14px;
   border: none;
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
   font-family: inherit;
+  font-weight: 500;
   border-bottom: 2px solid transparent;
-  transition: all 0.15s;
+  transition: color 0.25s ease, background 0.25s ease, border-bottom-color 0.3s ease, box-shadow 0.25s ease;
+  position: relative;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.tab::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-secondary, #a78bfa));
+  transition: width 0.3s ease, left 0.3s ease;
+  border-radius: 2px 2px 0 0;
 }
 
 .tab:hover {
   color: var(--text-secondary);
-  background: var(--bg-tertiary);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 -2px 8px rgba(var(--accent-rgb, 99, 102, 241), 0.05);
+}
+
+.tab:hover::after {
+  width: 60%;
+  left: 20%;
 }
 
 .tab.active {
   color: var(--text-primary);
-  border-bottom-color: var(--accent);
+  border-bottom-color: transparent;
+}
+
+.tab.active::after {
+  width: 100%;
+  left: 0;
+  background: linear-gradient(90deg, var(--accent), var(--accent-secondary, #a78bfa));
+  box-shadow: 0 0 8px rgba(var(--accent-rgb, 99, 102, 241), 0.4);
 }
 
 .tab.sidebar-toggle {
@@ -67,4 +138,20 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  animation: panelFadeIn 0.3s ease-out;
+}
+
+@keyframes panelFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.split-view-handle:hover {
+  background: var(--accent) !important;
 }

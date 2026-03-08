@@ -2,12 +2,22 @@
   padding: 20px;
   overflow-y: auto;
   height: 100%;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.agent-status.visible {
+  opacity: 1;
 }
 
 .agent-section-title {
   color: var(--text-primary);
   font-size: 16px;
   margin-bottom: 4px;
+  background: linear-gradient(135deg, var(--text-primary), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .agent-section-desc {
@@ -16,44 +26,134 @@
   margin-bottom: 16px;
 }
 
-.agent-grid {
+.agent-grid-section {
   margin-bottom: 24px;
 }
 
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+@keyframes cardSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes activeGlow {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(63, 185, 80, 0.2), 0 0 20px rgba(63, 185, 80, 0.05);
+    border-color: rgba(63, 185, 80, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(63, 185, 80, 0.35), 0 0 32px rgba(63, 185, 80, 0.1);
+    border-color: rgba(63, 185, 80, 0.9);
+  }
+}
+
+@keyframes progressShimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+@keyframes badgePulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.8);
+  }
+}
+
+@keyframes sourceSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .agent-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 8px;
-  transition: border-color 0.2s;
+  position: relative;
+  background: rgba(22, 27, 34, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 14px;
+  transition: transform 0.25s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  animation: cardSlideIn 0.4s ease both;
+  overflow: hidden;
+}
+
+.agent-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.agent-card-glow {
+  position: absolute;
+  inset: -1px;
+  border-radius: 10px;
+  pointer-events: none;
+  z-index: 0;
 }
 
 .agent-card.active {
-  border-color: var(--accent-green);
-  background: rgba(63, 185, 80, 0.05);
+  animation: cardSlideIn 0.4s ease both, activeGlow 2s ease-in-out infinite;
+  background: rgba(63, 185, 80, 0.04);
 }
 
 .agent-card.done {
   border-color: var(--accent);
-  opacity: 0.8;
+  opacity: 0.85;
+}
+
+.agent-card.done:hover {
+  opacity: 1;
 }
 
 .agent-card-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  position: relative;
+  z-index: 1;
 }
 
 .agent-card-icon {
-  font-size: 16px;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .agent-card-title {
   font-weight: 600;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 13px;
   flex: 1;
 }
 
@@ -64,6 +164,19 @@
   text-transform: uppercase;
   font-weight: 600;
   letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.3s ease;
+}
+
+.badge-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  animation: badgePulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
 }
 
 .agent-badge.idle {
@@ -84,13 +197,40 @@
 .agent-card-desc {
   color: var(--text-muted);
   font-size: 12px;
+  line-height: 1.4;
+  position: relative;
+  z-index: 1;
+}
+
+.agent-progress {
+  margin-top: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.agent-progress-bar {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.agent-progress-fill {
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-green), rgba(63, 185, 80, 0.3));
+  border-radius: 3px;
+  animation: progressShimmer 1.5s ease-in-out infinite;
 }
 
 .agent-card-msg {
   color: var(--accent-green);
-  font-size: 12px;
-  margin-top: 4px;
+  font-size: 11px;
+  margin-top: 6px;
   font-style: italic;
+  position: relative;
+  z-index: 1;
+  opacity: 0.9;
 }
 
 .prompt-sources {
@@ -104,13 +244,23 @@
 }
 
 .source-card {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px 12px;
+  background: rgba(22, 27, 34, 0.8);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  animation: sourceSlideIn 0.35s ease both;
+}
+
+.source-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(88, 166, 255, 0.3);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
 }
 
 .source-name {

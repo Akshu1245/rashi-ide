@@ -1,11 +1,13 @@
 import asyncio
+import io
 import json
 import os
 import sys
+import zipfile
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -13,8 +15,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend import workspace, preview
 from backend.prompt_compiler import get_all_prompt_sources, get_agent_names, compile_agent_prompt, load_all_prompts
 from backend.agents.orchestrator import OrchestratorAgent
+from backend.ai_service import get_settings, update_settings
+from backend.templates import get_template_list, create_from_template
 
-app = FastAPI(title="Rashi AI IDE")
+app = FastAPI(title="Rashi")
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,7 +41,7 @@ class FileUpdateRequest(BaseModel):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "name": "Rashi AI IDE"}
+    return {"status": "ok", "name": "Rashi"}
 
 
 @app.get("/api/projects")
@@ -79,6 +83,81 @@ async def update_file(project: str, path: str, req: FileUpdateRequest):
     return {"success": success}
 
 
+@app.post("/api/file/{project}/{path:path}")
+async def create_file(project: str, path: str):
+    existing = workspace.read_file(project, path)
+    if existing is not None:
+        return JSONResponse(status_code=409, content={"error": "File already exists"})
+    success = workspace.write_file(project, path, "")
+    return {"success": success}
+
+
+@app.delete("/api/file/{project}/{path:path}")
+async def delete_file(project: str, path: str):
+    success = workspace.delete_file(project, path)
+    return {"success": success}
+
+
+class RenameRequest(BaseModel):
+    newPath: str
+
+
+@app.patch("/api/file/{project}/{path:path}/rename")
+async def rename_file(project: str, path: str, req: RenameRequest):
+    content = workspace.read_file(project, path)
+    if content is None:
+        return JSONResponse(status_code=404, content={"error": "File not found"})
+    existing = workspace.read_file(project, req.newPath)
+    if existing is not None:
+        return JSONResponse(status_code=409, content={"error": "Target file already exists"})
+    workspace.write_file(project, req.newPath, content)
+    workspace.delete_file(project, path)
+    return {"success": True}
+
+
+@app.get("/api/templates")
+async def list_templates():
+    return {"templates": get_template_list()}
+
+
+@app.post("/api/templates/{template_id}/create")
+async def create_template_project(template_id: str, name: str = None):
+    template = create_from_template(template_id)
+    if not template:
+        return JSONResponse(status_code=404, content={"error": "Template not found"})
+    project_name = name or template_id
+    workspace.create_project(project_name)
+    for file_path, content in template["files"].items():
+        workspace.write_file(project_name, file_path, content)
+    tree = workspace.get_file_tree(project_name)
+    return {"success": True, "project": project_name, "tree": tree}
+
+
+@app.get("/api/projects/{name}/download")
+async def download_project(name: str):
+    project_path = workspace._safe_project_path(name)
+    if not project_path or not os.path.isdir(project_path):
+        return JSONResponse(status_code=404, content={"error": "Project not found"})
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, dirs, files in os.walk(project_path):
+            dirs[:] = [d for d in dirs if d != "node_modules" and not d.startswith(".")]
+            for file in files:
+                if file.startswith("."):
+                    continue
+                full = os.path.join(root, file)
+                arcname = os.path.relpath(full, project_path)
+                zf.write(full, arcname)
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{name}.zip"'},
+    )
+
+
 @app.post("/api/preview/start/{project}")
 async def start_preview(project: str, port: int = 8080):
     result = preview.start_preview(project, port)
@@ -99,6 +178,24 @@ async def preview_status(project: str):
 @app.get("/api/preview/output/{project}")
 async def preview_output(project: str, lines: int = 50):
     return {"output": preview.get_output(project, lines)}
+
+
+class SettingsRequest(BaseModel):
+    provider: str = "replit"
+    apiKey: str = ""
+    baseUrl: str = ""
+    model: str = "gpt-5-mini"
+
+
+@app.get("/api/settings")
+async def get_settings_endpoint():
+    return get_settings()
+
+
+@app.post("/api/settings")
+async def update_settings_endpoint(req: SettingsRequest):
+    update_settings(req.model_dump())
+    return {"success": True}
 
 
 @app.get("/api/prompts")

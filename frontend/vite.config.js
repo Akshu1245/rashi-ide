@@ -15,6 +15,7 @@ export default defineConfig({
       '/ws': {
         target: 'ws://localhost:3000',
         ws: true,
+        changeOrigin: true,
       },
       '/preview': {
         target: 'http://localhost:8080',

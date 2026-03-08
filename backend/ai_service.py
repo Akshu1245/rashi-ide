@@ -6,15 +6,47 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 # do not change this unless explicitly requested by the user
 
 _client = None
+_settings = {
+    "provider": "replit",
+    "apiKey": "",
+    "baseUrl": "",
+    "model": "gpt-5-mini",
+}
+
+def get_settings():
+    safe = dict(_settings)
+    if safe.get("apiKey"):
+        safe["apiKey"] = "***" + safe["apiKey"][-4:] if len(safe["apiKey"]) > 4 else "****"
+    return safe
+
+def get_raw_settings():
+    return dict(_settings)
+
+def update_settings(new_settings):
+    global _client
+    _settings.update(new_settings)
+    _client = None
 
 def get_client():
     global _client
     if _client is None:
-        _client = OpenAI(
-            api_key=os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY"),
-            base_url=os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL")
-        )
+        provider = _settings.get("provider", "replit")
+        api_key = _settings.get("apiKey") or os.environ.get("AI_INTEGRATIONS_OPENAI_API_KEY")
+        base_url = _settings.get("baseUrl") or os.environ.get("AI_INTEGRATIONS_OPENAI_BASE_URL")
+
+        if provider == "openai" and not base_url:
+            base_url = None
+        elif provider == "kilocode" and not base_url:
+            base_url = "https://api.kilocode.ai/v1"
+
+        if base_url:
+            _client = OpenAI(api_key=api_key, base_url=base_url)
+        else:
+            _client = OpenAI(api_key=api_key)
     return _client
+
+def _get_model():
+    return _settings.get("model", "gpt-5-mini") or "gpt-5-mini"
 
 MODELS = {
     "planning": "gpt-5-mini",
@@ -42,7 +74,7 @@ def is_rate_limit_error(exception):
     reraise=True
 )
 def chat_completion(system_prompt, user_message, model_type="quick"):
-    model = MODELS.get(model_type, MODELS["quick"])
+    model = _get_model() if _settings.get("model") else MODELS.get(model_type, MODELS["quick"])
     response = get_client().chat.completions.create(
         model=model,
         messages=[
@@ -55,7 +87,7 @@ def chat_completion(system_prompt, user_message, model_type="quick"):
 
 
 async def chat_completion_stream(system_prompt, user_message, model_type="quick"):
-    model = MODELS.get(model_type, MODELS["quick"])
+    model = _get_model() if _settings.get("model") else MODELS.get(model_type, MODELS["quick"])
     stream = get_client().chat.completions.create(
         model=model,
         messages=[
@@ -71,7 +103,7 @@ async def chat_completion_stream(system_prompt, user_message, model_type="quick"
 
 
 def chat_completion_with_history(system_prompt, messages, model_type="quick"):
-    model = MODELS.get(model_type, MODELS["quick"])
+    model = _get_model() if _settings.get("model") else MODELS.get(model_type, MODELS["quick"])
     full_messages = [{"role": "system", "content": system_prompt}] + messages
     response = get_client().chat.completions.create(
         model=model,

@@ -15,6 +15,7 @@ export function useWebSocket() {
   const reconnectTimerRef = useRef(null);
   const mountedRef = useRef(true);
   const connectingRef = useRef(false);
+  const lastPromptRef = useRef(null);
 
   const connect = useCallback(() => {
     if (!mountedRef.current) return;
@@ -88,7 +89,7 @@ export function useWebSocket() {
     }
   }, []);
 
-  const handleMessage = useCallback((msg) => {
+  const handleMessage = useCallback(async (msg) => {
     const { type, data } = msg;
 
     switch (type) {
@@ -132,6 +133,12 @@ export function useWebSocket() {
         setCurrentProject(data.project);
         setIsGenerating(false);
         setMessages(prev => [...prev, { type: 'complete', text: `Project "${data.project}" is ready!`, data, time: Date.now() }]);
+        try {
+          const { saveHistoryItem } = await import('../components/History');
+          if (data.project && lastPromptRef.current) {
+            saveHistoryItem(lastPromptRef.current, data.project);
+          }
+        } catch {}
         break;
       case 'pong':
         break;
@@ -145,6 +152,7 @@ export function useWebSocket() {
     connect();
     return () => {
       mountedRef.current = false;
+      connectingRef.current = false;
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
@@ -159,9 +167,23 @@ export function useWebSocket() {
     };
   }, [connect]);
 
+  const refreshFileTree = useCallback(async (projectName) => {
+    if (!projectName) return;
+    try {
+      const res = await fetch(`/api/files/${projectName}`);
+      const data = await res.json();
+      if (data.tree) {
+        setFileTree(data.tree);
+      }
+    } catch (e) {
+      console.error('Failed to refresh file tree', e);
+    }
+  }, []);
+
   const sendPrompt = useCallback((prompt) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       setIsGenerating(true);
+      lastPromptRef.current = prompt;
       setMessages([{ type: 'status', text: `You: ${prompt}`, time: Date.now() }]);
       setAgents({});
       setFileTree(null);
@@ -181,6 +203,7 @@ export function useWebSocket() {
     messages,
     agents,
     currentProject,
+    setCurrentProject,
     fileTree,
     terminalOutput,
     previewInfo,
@@ -188,5 +211,6 @@ export function useWebSocket() {
     architecture,
     isGenerating,
     sendPrompt,
+    refreshFileTree,
   };
 }

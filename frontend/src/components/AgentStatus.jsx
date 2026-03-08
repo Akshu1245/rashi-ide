@@ -18,6 +18,7 @@ const AGENT_DESCRIPTIONS = {
 
 export default function AgentStatus({ agents }) {
   const [promptSources, setPromptSources] = useState([]);
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     fetch('/api/prompts')
@@ -26,41 +27,67 @@ export default function AgentStatus({ agents }) {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setVisible(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
+
   const allAgents = Object.keys(AGENT_DESCRIPTIONS);
 
   return (
-    <div className="agent-status">
-      <div className="agent-grid">
-        <h3 className="agent-section-title">Multi-Agent System</h3>
+    <div className={`agent-status ${visible ? 'visible' : ''}`}>
+      <div className="agent-grid-section">
+        <h3 className="agent-section-title">Rashi Neural Network</h3>
         <p className="agent-section-desc">
           12 specialized AI agents powered by compiled prompts from {promptSources.length} sources
         </p>
-        {allAgents.map(name => {
-          const info = AGENT_DESCRIPTIONS[name];
-          const state = agents?.[name];
-          const status = state?.status || 'idle';
-          return (
-            <div key={name} className={`agent-card ${status}`}>
-              <div className="agent-card-header">
-                <span className="agent-card-icon">{info.icon}</span>
-                <span className="agent-card-title">{info.title}</span>
-                <span className={`agent-badge ${status}`}>{status}</span>
+        <div className="agent-grid">
+          {allAgents.map((name, index) => {
+            const info = AGENT_DESCRIPTIONS[name];
+            const state = agents?.[name];
+            const status = state?.status || 'idle';
+            return (
+              <div
+                key={name}
+                className={`agent-card ${status}`}
+                style={{ animationDelay: `${index * 60}ms` }}
+              >
+                {status === 'active' && <div className="agent-card-glow" />}
+                <div className="agent-card-header">
+                  <span className="agent-card-icon">{info.icon}</span>
+                  <span className="agent-card-title">{info.title}</span>
+                  <span className={`agent-badge ${status}`}>
+                    {status === 'active' && <span className="badge-pulse" />}
+                    {status}
+                  </span>
+                </div>
+                <p className="agent-card-desc">{info.desc}</p>
+                {status === 'active' && (
+                  <div className="agent-progress">
+                    <div className="agent-progress-bar">
+                      <div className="agent-progress-fill" />
+                    </div>
+                  </div>
+                )}
+                {state?.message && (
+                  <p className="agent-card-msg">{state.message}</p>
+                )}
               </div>
-              <p className="agent-card-desc">{info.desc}</p>
-              {state?.message && (
-                <p className="agent-card-msg">{state.message}</p>
-              )}
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       {promptSources.length > 0 && (
         <div className="prompt-sources">
           <h3 className="agent-section-title">Integrated Prompt Sources</h3>
           <div className="source-grid">
-            {promptSources.map(s => (
-              <div key={s.name} className="source-card">
+            {promptSources.map((s, index) => (
+              <div
+                key={s.name}
+                className="source-card"
+                style={{ animationDelay: `${index * 40}ms` }}
+              >
                 <span className="source-name">{s.name}</span>
                 <span className="source-meta">
                   {s.prompt_files.length} prompts, {Math.round(s.total_size / 1024)}KB

@@ -1,0 +1,214 @@
+.settings-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.settings-modal {
+  background: rgba(30, 30, 45, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  width: 480px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  animation: scaleIn 0.25s ease-out;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(99, 102, 241, 0.1);
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.settings-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #818cf8, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.settings-close-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: all 0.2s ease;
+}
+
+.settings-close-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.settings-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-section label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.settings-section select,
+.settings-section input {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: #e2e8f0;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.settings-section select:focus,
+.settings-section input:focus {
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.settings-section select option {
+  background: #1e1e2d;
+  color: #e2e8f0;
+}
+
+.settings-section input::placeholder {
+  color: #475569;
+}
+
+.settings-section .settings-hint {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.settings-footer {
+  padding: 16px 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.settings-btn {
+  padding: 8px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.settings-btn-cancel {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+}
+
+.settings-btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+
+.settings-btn-save {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  border: none;
+}
+
+.settings-btn-save:hover {
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+  transform: translateY(-1px);
+}
+
+.settings-btn-save:active {
+  transform: translateY(0);
+}
+
+.settings-theme-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.theme-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 1;
+  justify-content: center;
+}
+
+.theme-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+}
+
+.theme-btn.active {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #a78bfa;
+}
+
+.settings-saved-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #4ade80;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  animation: slideInUp 0.3s ease-out;
+  z-index: 1001;
+}
