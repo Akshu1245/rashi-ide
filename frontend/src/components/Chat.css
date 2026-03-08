@@ -2,6 +2,29 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  position: relative;
+}
+
+.chat-drag-active {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}
+
+.chat-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(13, 17, 23, 0.85);
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: 600;
+  pointer-events: none;
+  border-radius: 8px;
 }
 
 .chat-messages {
@@ -318,6 +341,38 @@
   font-weight: 600;
 }
 
+.test-result-msg {
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.test-result-msg.test-passed {
+  background: rgba(63, 185, 80, 0.08);
+  border-left: 3px solid #3fb950;
+}
+
+.test-result-msg.test-passed .msg-text {
+  color: #3fb950;
+}
+
+.test-result-msg.test-failed {
+  background: rgba(248, 81, 73, 0.08);
+  border-left: 3px solid #f85149;
+}
+
+.test-result-msg.test-failed .msg-text {
+  color: #f85149;
+}
+
+.uiux-update-msg {
+  background: rgba(137, 87, 255, 0.08);
+  border-left: 3px solid #8957ff;
+}
+
+.uiux-update-msg .msg-text {
+  color: #c9a0ff;
+}
+
 .plan-msg, .arch-msg {
   flex-direction: column;
   background: rgba(22, 27, 34, 0.6);
@@ -412,6 +467,7 @@
   padding: 14px 16px;
   border-top: 1px solid var(--border);
   background: var(--bg-secondary);
+  align-items: center;
 }
 
 .chat-input {
@@ -461,6 +517,48 @@
 .chat-send:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+.chat-upload-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.chat-upload-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(88, 166, 255, 0.08);
+}
+
+.chat-new-project-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.chat-new-project-btn:hover {
+  border-color: var(--accent-green, #3fb950);
+  color: var(--accent-green, #3fb950);
+  background: rgba(63, 185, 80, 0.08);
 }
 
 .code-block {

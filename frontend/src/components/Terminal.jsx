@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import './Terminal.css';
 
 export default function Terminal({ output }) {
@@ -7,6 +7,8 @@ export default function Terminal({ output }) {
   const fitAddonRef = useRef(null);
   const lastLengthRef = useRef(0);
   const initRef = useRef(false);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const userScrolledRef = useRef(false);
 
   const initTerminal = useCallback(async () => {
     if (initRef.current || !termContainerRef.current) return;
@@ -61,6 +63,15 @@ export default function Terminal({ output }) {
       termInstanceRef.current = term;
       fitAddonRef.current = fitAddon;
 
+      const viewport = termContainerRef.current.querySelector('.xterm-viewport');
+      if (viewport) {
+        viewport.addEventListener('scroll', () => {
+          const isAtBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 30;
+          userScrolledRef.current = !isAtBottom;
+          setShowScrollBtn(!isAtBottom);
+        });
+      }
+
       if (output && output.length > 0) {
         for (const line of output) {
           const text = typeof line === 'string' ? line : JSON.stringify(line);
@@ -95,6 +106,9 @@ export default function Terminal({ output }) {
       termInstanceRef.current.writeln(colorize(text));
     }
     lastLengthRef.current = output.length;
+    if (!userScrolledRef.current) {
+      termInstanceRef.current.scrollToBottom();
+    }
   }, [output]);
 
   useEffect(() => {
@@ -112,6 +126,14 @@ export default function Terminal({ output }) {
   const handleClear = () => {
     if (termInstanceRef.current) {
       termInstanceRef.current.clear();
+    }
+  };
+
+  const handleScrollToBottom = () => {
+    if (termInstanceRef.current) {
+      termInstanceRef.current.scrollToBottom();
+      userScrolledRef.current = false;
+      setShowScrollBtn(false);
     }
   };
 
@@ -133,13 +155,23 @@ export default function Terminal({ output }) {
           </svg>
         </button>
       </div>
-      <div className="terminal-xterm-container" ref={termContainerRef} />
+      <div className="terminal-body">
+        <div className="terminal-xterm-container" ref={termContainerRef} />
+        {showScrollBtn && (
+          <button className="terminal-scroll-btn" onClick={handleScrollToBottom} title="Scroll to bottom">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
 function colorize(text) {
   if (typeof text !== 'string') return text;
+  if (/\x1b\[/.test(text)) return text;
   const lower = text.toLowerCase();
   if (lower.includes('error') || lower.includes('failed') || lower.includes('exception') || lower.includes('traceback')) {
     return `\x1b[31m${text}\x1b[0m`;
@@ -149,6 +181,12 @@ function colorize(text) {
   }
   if (lower.includes('success') || lower.includes('compiled') || lower.includes('ready') || lower.includes('listening') || lower.includes('started') || lower.includes('done')) {
     return `\x1b[32m${text}\x1b[0m`;
+  }
+  if (/^\s*\$/.test(text) || /^\s*>/.test(text)) {
+    return `\x1b[36m${text}\x1b[0m`;
+  }
+  if (/^\s*\d+[\s|]/.test(text) || /^---/.test(text) || /^===/.test(text)) {
+    return `\x1b[90m${text}\x1b[0m`;
   }
   return text;
 }

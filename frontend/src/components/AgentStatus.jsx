@@ -16,6 +16,22 @@ const AGENT_DESCRIPTIONS = {
   deployer: { title: 'Deployer', desc: 'Prepares applications for deployment', icon: '🚀' },
 };
 
+const PIPELINE_STAGES = [
+  { key: 'planner', label: 'Plan' },
+  { key: 'architect', label: 'Design' },
+  { key: 'coder', label: 'Code' },
+  { key: 'uiux', label: 'UI/UX' },
+  { key: 'debugger', label: 'Debug' },
+  { key: 'tester', label: 'Test' },
+  { key: 'executor', label: 'Run' },
+];
+
+function getPipelineStatus(agents, stageKey) {
+  const state = agents?.[stageKey];
+  if (!state) return 'pending';
+  return state.status || 'pending';
+}
+
 export default function AgentStatus({ agents }) {
   const [promptSources, setPromptSources] = useState([]);
   const [visible, setVisible] = useState(false);
@@ -34,8 +50,41 @@ export default function AgentStatus({ agents }) {
 
   const allAgents = Object.keys(AGENT_DESCRIPTIONS);
 
+  const hasAnyActive = allAgents.some(name => agents?.[name]?.status === 'active' || agents?.[name]?.status === 'done');
+
+  const debugRetries = agents?.debugger?.retries || 0;
+
   return (
     <div className={`agent-status ${visible ? 'visible' : ''}`}>
+      {hasAnyActive && (
+        <div className="pipeline-timeline">
+          <h3 className="agent-section-title">Build Pipeline</h3>
+          <div className="pipeline-stages">
+            {PIPELINE_STAGES.map((stage, idx) => {
+              const stageStatus = getPipelineStatus(agents, stage.key);
+              return (
+                <React.Fragment key={stage.key}>
+                  <div className={`pipeline-stage ${stageStatus}`}>
+                    <div className="pipeline-stage-dot">
+                      {stageStatus === 'active' && <span className="pipeline-dot-pulse" />}
+                      {stageStatus === 'done' && (
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </div>
+                    <span className="pipeline-stage-label">{stage.label}</span>
+                  </div>
+                  {idx < PIPELINE_STAGES.length - 1 && (
+                    <div className={`pipeline-connector ${stageStatus === 'done' ? 'done' : ''}`} />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="agent-grid-section">
         <h3 className="agent-section-title">Rashi Neural Network</h3>
         <p className="agent-section-desc">
@@ -46,6 +95,7 @@ export default function AgentStatus({ agents }) {
             const info = AGENT_DESCRIPTIONS[name];
             const state = agents?.[name];
             const status = state?.status || 'idle';
+            const isDebugger = name === 'debugger';
             return (
               <div
                 key={name}
@@ -56,6 +106,11 @@ export default function AgentStatus({ agents }) {
                 <div className="agent-card-header">
                   <span className="agent-card-icon">{info.icon}</span>
                   <span className="agent-card-title">{info.title}</span>
+                  {isDebugger && debugRetries > 0 && (
+                    <span className="retry-badge" title={`${debugRetries} retry attempt${debugRetries > 1 ? 's' : ''}`}>
+                      ↻ {debugRetries}
+                    </span>
+                  )}
                   <span className={`agent-badge ${status}`}>
                     {status === 'active' && <span className="badge-pulse" />}
                     {status}

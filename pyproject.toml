@@ -10,4 +10,5 @@ dependencies = [
     "pydantic",
     "tenacity",
     "websockets",
+    "python-multipart>=0.0.22",
 ]

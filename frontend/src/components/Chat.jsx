@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Layout, Server, Globe, Code2 } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Layout, Server, Globe, Code2, Upload, Plus } from 'lucide-react';
 import './Chat.css';
 
 const BrainCircuitIcon = () => (
@@ -44,10 +44,14 @@ const TEMPLATE_ICONS = {
   globe: <Globe size={20} />,
 };
 
-export default function Chat({ messages, onSend, isGenerating, plan, architecture, onProjectCreated }) {
+export default function Chat({ messages, onSend, onIterate, isGenerating, plan, architecture, onProjectCreated, currentProject, onNewProject }) {
   const [input, setInput] = useState('');
   const [templates, setTemplates] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  const isIterateMode = !!currentProject;
 
   useEffect(() => {
     fetch('/api/templates')
@@ -63,7 +67,11 @@ export default function Chat({ messages, onSend, isGenerating, plan, architectur
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!input.trim() || isGenerating) return;
-    onSend(input.trim());
+    if (isIterateMode && onIterate) {
+      onIterate(input.trim(), currentProject);
+    } else {
+      onSend(input.trim());
+    }
     setInput('');
   };
 
@@ -71,8 +79,46 @@ export default function Chat({ messages, onSend, isGenerating, plan, architectur
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       if (!input.trim() || isGenerating) return;
-      onSend(input.trim());
+      if (isIterateMode && onIterate) {
+        onIterate(input.trim(), currentProject);
+      } else {
+        onSend(input.trim());
+      }
       setInput('');
+    }
+  };
+
+  const handleFileUpload = useCallback(async (files) => {
+    if (!currentProject || !files || files.length === 0) return;
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        await fetch(`/api/upload/${currentProject}/${file.name}`, {
+          method: 'POST',
+          body: formData,
+        });
+      } catch (e) {
+        console.error('Failed to upload file', e);
+      }
+    }
+  }, [currentProject]);
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    if (currentProject) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (currentProject && e.dataTransfer.files.length > 0) {
+      handleFileUpload(e.dataTransfer.files);
     }
   };
 
@@ -106,7 +152,18 @@ export default function Chat({ messages, onSend, isGenerating, plan, architectur
     : quickPrompts.filter(p => p.category === activeCategory);
 
   return (
-    <div className="chat">
+    <div
+      className={`chat ${isDragging ? 'chat-drag-active' : ''}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDragging && (
+        <div className="chat-drop-overlay">
+          <Upload size={48} />
+          <span>Drop files to upload</span>
+        </div>
+      )}
       <div className="chat-messages">
         {messages.length === 0 && !isGenerating && (
           <div className="chat-welcome">
@@ -192,14 +249,46 @@ export default function Chat({ messages, onSend, isGenerating, plan, architectur
         <div ref={messagesEndRef} />
       </div>
       <form className="chat-input-area" onSubmit={handleSubmit}>
+        {isIterateMode && onNewProject && (
+          <button
+            type="button"
+            className="chat-new-project-btn"
+            onClick={onNewProject}
+            title="Start a new project"
+          >
+            <Plus size={18} />
+          </button>
+        )}
         <input
           className="chat-input"
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={isGenerating ? "Building your project..." : "What would you like me to build?"}
+          placeholder={isGenerating ? "Building your project..." : (isIterateMode ? "Describe changes..." : "What would you like me to build?")}
           disabled={isGenerating}
         />
+        {isIterateMode && (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                handleFileUpload(e.target.files);
+                e.target.value = '';
+              }}
+            />
+            <button
+              type="button"
+              className="chat-upload-btn"
+              onClick={() => fileInputRef.current?.click()}
+              title="Upload files"
+            >
+              <Upload size={16} />
+            </button>
+          </>
+        )}
         <button
           className="chat-send"
           type="submit"
@@ -265,6 +354,8 @@ function MessageItem({ msg, index }) {
     file: '📄',
     error: '❌',
     complete: '✅',
+    test_result: '🧪',
+    uiux_update: '🎨',
   };
 
   const staggerDelay = `${Math.min(index * 0.05, 0.5)}s`;
@@ -304,6 +395,25 @@ function MessageItem({ msg, index }) {
             <p><strong>Dependencies:</strong> {msg.data.dependencies.join(', ')}</p>
           )}
         </div>
+      </div>
+    );
+  }
+
+  if (msg.type === 'test_result') {
+    const passed = msg.data?.passed;
+    return (
+      <div className={`chat-msg test-result-msg ${passed ? 'test-passed' : 'test-failed'} msg-animate`} style={{ animationDelay: staggerDelay }}>
+        <span className="msg-icon">🧪</span>
+        <span className="msg-text">{renderMessageText(msg.text)}</span>
+      </div>
+    );
+  }
+
+  if (msg.type === 'uiux_update') {
+    return (
+      <div className="chat-msg uiux-update-msg msg-animate" style={{ animationDelay: staggerDelay }}>
+        <span className="msg-icon">🎨</span>
+        <span className="msg-text">{renderMessageText(msg.text)}</span>
       </div>
     );
   }

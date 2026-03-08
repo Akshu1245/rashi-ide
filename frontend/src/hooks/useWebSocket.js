@@ -99,7 +99,7 @@ export function useWebSocket() {
       case 'agent':
         setAgents(prev => ({
           ...prev,
-          [data.name]: { status: data.status, message: data.message || '' }
+          [data.name]: { status: data.status, message: data.message || '', retries: data.retries || prev[data.name]?.retries || 0 }
         }));
         break;
       case 'plan':
@@ -139,6 +139,21 @@ export function useWebSocket() {
             saveHistoryItem(lastPromptRef.current, data.project);
           }
         } catch {}
+        break;
+      case 'iterate_start':
+        setIsGenerating(true);
+        setMessages(prev => [...prev, { type: 'status', text: data || 'Iterating on project...', time: Date.now() }]);
+        break;
+      case 'iterate_complete':
+        setCurrentProject(data.project || currentProject);
+        setIsGenerating(false);
+        setMessages(prev => [...prev, { type: 'complete', text: `Project "${data.project}" updated! Modified ${(data.modified_files || []).length} file(s).`, data, time: Date.now() }]);
+        break;
+      case 'test_result':
+        setMessages(prev => [...prev, { type: 'test_result', text: data.message || data, data, time: Date.now() }]);
+        break;
+      case 'uiux_update':
+        setMessages(prev => [...prev, { type: 'uiux_update', text: data.message || data, data, time: Date.now() }]);
         break;
       case 'pong':
         break;
@@ -198,6 +213,30 @@ export function useWebSocket() {
     }
   }, [connect]);
 
+  const sendIterate = useCallback((prompt, project) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      setIsGenerating(true);
+      lastPromptRef.current = prompt;
+      setMessages(prev => [...prev, { type: 'status', text: `You: ${prompt}`, time: Date.now() }]);
+      wsRef.current.send(JSON.stringify({ action: 'iterate', prompt, project }));
+    } else {
+      setMessages(prev => [...prev, { type: 'error', text: 'Not connected to server. Reconnecting...', time: Date.now() }]);
+      connect();
+    }
+  }, [connect]);
+
+  const resetProject = useCallback(() => {
+    setMessages([]);
+    setAgents({});
+    setCurrentProject(null);
+    setFileTree(null);
+    setTerminalOutput([]);
+    setPreviewInfo(null);
+    setPlan(null);
+    setArchitecture(null);
+    setIsGenerating(false);
+  }, []);
+
   return {
     connected,
     messages,
@@ -211,6 +250,8 @@ export function useWebSocket() {
     architecture,
     isGenerating,
     sendPrompt,
+    sendIterate,
     refreshFileTree,
+    resetProject,
   };
 }

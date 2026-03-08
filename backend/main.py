@@ -5,7 +5,7 @@ import os
 import sys
 import zipfile
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
@@ -198,6 +198,73 @@ async def update_settings_endpoint(req: SettingsRequest):
     return {"success": True}
 
 
+@app.post("/api/upload/{project}/{path:path}")
+async def upload_file(project: str, path: str, file: UploadFile = File(...)):
+    project_path = workspace._safe_project_path(project)
+    if not project_path or not os.path.isdir(project_path):
+        return JSONResponse(status_code=404, content={"error": "Project not found"})
+    content = await file.read()
+    try:
+        text_content = content.decode("utf-8")
+    except UnicodeDecodeError:
+        text_content = content.decode("latin-1")
+    success = workspace.write_file(project, path, text_content)
+    return {"success": success, "path": path, "size": len(content)}
+
+
+@app.post("/api/folder/{project}/{path:path}")
+async def create_folder(project: str, path: str):
+    project_path = workspace._safe_project_path(project)
+    if not project_path or not os.path.isdir(project_path):
+        return JSONResponse(status_code=404, content={"error": "Project not found"})
+    folder_path = os.path.join(project_path, path)
+    folder_real = os.path.realpath(folder_path)
+    if not folder_real.startswith(os.path.realpath(project_path)):
+        return JSONResponse(status_code=400, content={"error": "Invalid path"})
+    os.makedirs(folder_real, exist_ok=True)
+    return {"success": True, "path": path}
+
+
+@app.get("/api/projects/{name}/stats")
+async def project_stats(name: str):
+    project_path = workspace._safe_project_path(name)
+    if not project_path or not os.path.isdir(project_path):
+        return JSONResponse(status_code=404, content={"error": "Project not found"})
+    file_count = 0
+    total_size = 0
+    last_modified = 0
+    extensions = set()
+    for root, dirs, files in os.walk(project_path):
+        dirs[:] = [d for d in dirs if d != "node_modules" and not d.startswith(".")]
+        for f in files:
+            if f.startswith("."):
+                continue
+            full = os.path.join(root, f)
+            file_count += 1
+            stat = os.stat(full)
+            total_size += stat.st_size
+            if stat.st_mtime > last_modified:
+                last_modified = stat.st_mtime
+            ext = os.path.splitext(f)[1].lower()
+            if ext:
+                extensions.add(ext)
+    project_type = "unknown"
+    if os.path.isfile(os.path.join(project_path, "package.json")):
+        project_type = "node"
+    elif os.path.isfile(os.path.join(project_path, "requirements.txt")):
+        project_type = "python"
+    elif os.path.isfile(os.path.join(project_path, "pyproject.toml")):
+        project_type = "python"
+    elif ".html" in extensions:
+        project_type = "static"
+    return {
+        "file_count": file_count,
+        "total_size": total_size,
+        "project_type": project_type,
+        "last_modified": last_modified if last_modified > 0 else None,
+    }
+
+
 @app.get("/api/prompts")
 async def list_prompts():
     return {"sources": get_all_prompt_sources()}
@@ -241,6 +308,22 @@ async def websocket_endpoint(ws: WebSocket):
 
                 orchestrator = OrchestratorAgent()
                 await orchestrator.run(prompt, send_message)
+
+            elif action == "iterate":
+                prompt = msg.get("prompt", "")
+                project = msg.get("project", "")
+                if not prompt or not project:
+                    await send_message("error", "iterate requires 'prompt' and 'project'")
+                    continue
+                project_path = workspace._safe_project_path(project)
+                if not project_path or not os.path.isdir(project_path):
+                    await send_message("error", f"Project '{project}' not found")
+                    continue
+                orchestrator = OrchestratorAgent()
+                if hasattr(orchestrator, 'iterate'):
+                    await orchestrator.iterate(project, prompt, send_message)
+                else:
+                    await send_message("error", "iterate not yet supported by orchestrator")
 
             elif action == "ping":
                 await send_message("pong", {})

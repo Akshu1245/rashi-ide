@@ -81,7 +81,7 @@ def chat_completion(system_prompt, user_message, model_type="quick"):
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message},
         ],
-        max_completion_tokens=8192,
+        max_completion_tokens=16384,
     )
     return response.choices[0].message.content or ""
 
@@ -94,12 +94,38 @@ async def chat_completion_stream(system_prompt, user_message, model_type="quick"
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message},
         ],
-        max_completion_tokens=8192,
+        max_completion_tokens=16384,
         stream=True,
     )
     for chunk in stream:
         if chunk.choices and chunk.choices[0].delta.content:
             yield chunk.choices[0].delta.content
+
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=64),
+    retry=retry_if_exception(is_rate_limit_error),
+    reraise=True
+)
+def chat_completion_with_context(system_prompt, user_message, file_context, model_type="quick"):
+    model = _get_model() if _settings.get("model") else MODELS.get(model_type, MODELS["quick"])
+    context_text = ""
+    if file_context:
+        for file_path, content in file_context.items():
+            context_text += f"\n--- {file_path} ---\n{content}\n"
+    full_user_message = user_message
+    if context_text:
+        full_user_message = f"File context:\n{context_text}\n\nRequest: {user_message}"
+    response = get_client().chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": full_user_message},
+        ],
+        max_completion_tokens=16384,
+    )
+    return response.choices[0].message.content or ""
 
 
 def chat_completion_with_history(system_prompt, messages, model_type="quick"):
@@ -108,6 +134,6 @@ def chat_completion_with_history(system_prompt, messages, model_type="quick"):
     response = get_client().chat.completions.create(
         model=model,
         messages=full_messages,
-        max_completion_tokens=8192,
+        max_completion_tokens=16384,
     )
     return response.choices[0].message.content or ""

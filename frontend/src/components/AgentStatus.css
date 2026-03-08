@@ -26,6 +26,103 @@
   margin-bottom: 16px;
 }
 
+.pipeline-timeline {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: rgba(22, 27, 34, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+
+.pipeline-stages {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-top: 12px;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+
+.pipeline-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 52px;
+}
+
+.pipeline-stage-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.pipeline-stage.active .pipeline-stage-dot {
+  background: rgba(63, 185, 80, 0.2);
+  border-color: var(--accent-green);
+}
+
+.pipeline-stage.done .pipeline-stage-dot {
+  background: rgba(88, 166, 255, 0.2);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pipeline-dot-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  animation: badgePulse 1.5s ease-in-out infinite;
+}
+
+.pipeline-stage-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  transition: color 0.3s ease;
+}
+
+.pipeline-stage.active .pipeline-stage-label {
+  color: var(--accent-green);
+}
+
+.pipeline-stage.done .pipeline-stage-label {
+  color: var(--accent);
+}
+
+.pipeline-connector {
+  flex: 1;
+  height: 2px;
+  min-width: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  margin-bottom: 20px;
+  transition: background 0.3s ease;
+}
+
+.pipeline-connector.done {
+  background: rgba(88, 166, 255, 0.4);
+}
+
+.retry-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .agent-grid-section {
   margin-bottom: 24px;
 }

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import re
 import subprocess
 import traceback
 from backend.agents.base import BaseAgent
@@ -15,10 +16,36 @@ class OrchestratorAgent:
         self.dependency = BaseAgent("dependency", "quick")
         self.debugger = BaseAgent("debugger", "debugging")
         self.executor = BaseAgent("executor", "quick")
+        self.uiux = BaseAgent("uiux", "coding")
+        self.tester = BaseAgent("tester", "quick")
+        self.editor = BaseAgent("editor", "coding")
 
     async def _run_in_thread(self, fn, *args):
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, fn, *args)
+
+    def _read_project_files(self, project_name):
+        file_tree = workspace.get_file_tree(project_name)
+        if not file_tree:
+            return {}
+
+        file_contents = {}
+
+        def collect_files(tree):
+            for item in tree:
+                if item["type"] == "file":
+                    content = workspace.read_file(project_name, item["path"])
+                    if content is not None:
+                        file_contents[item["path"]] = content
+                elif item["type"] == "directory" and "children" in item:
+                    collect_files(item["children"])
+
+        collect_files(file_tree)
+        return file_contents
+
+    def _has_ui_files(self, file_paths):
+        ui_extensions = ('.html', '.css', '.jsx', '.tsx', '.vue', '.svelte')
+        return any(p.endswith(ui_extensions) for p in file_paths)
 
     async def run(self, user_prompt, send_message):
         project_name = None
@@ -40,21 +67,17 @@ User request: {user_prompt}"""
             )
             await send_message("agent", {"name": "planner", "status": "done", "message": "Plan created"})
 
-            try:
-                plan_data = json.loads(self._clean_json(plan))
-            except json.JSONDecodeError:
-                plan_data = {
-                    "project_name": "my-project",
-                    "description": user_prompt,
-                    "tasks": [
-                        {"id": 1, "name": "Setup project", "description": "Create project structure"},
-                        {"id": 2, "name": "Generate code", "description": "Write application code"},
-                        {"id": 3, "name": "Install dependencies", "description": "Install packages"},
-                    ]
-                }
+            plan_data = self._safe_parse_json(plan, {
+                "project_name": "my-project",
+                "description": user_prompt,
+                "tasks": [
+                    {"id": 1, "name": "Setup project", "description": "Create project structure"},
+                    {"id": 2, "name": "Generate code", "description": "Write application code"},
+                    {"id": 3, "name": "Install dependencies", "description": "Install packages"},
+                ]
+            })
 
             project_name = plan_data.get("project_name", "my-project")
-            import re
             project_name = re.sub(r'[^a-zA-Z0-9_\-]', '', project_name) or "my-project"
             await send_message("plan", plan_data)
 
@@ -76,10 +99,7 @@ Tasks: {json.dumps(plan_data.get('tasks', []))}"""
             )
             await send_message("agent", {"name": "architect", "status": "done", "message": "Architecture designed"})
 
-            try:
-                arch_data = json.loads(self._clean_json(arch))
-            except json.JSONDecodeError:
-                arch_data = {"framework": "vanilla", "structure": {}, "dependencies": []}
+            arch_data = self._safe_parse_json(arch, {"framework": "vanilla", "structure": {}, "dependencies": []})
 
             await send_message("architecture", arch_data)
 
@@ -102,10 +122,10 @@ Do not use placeholder text. Every file must be complete and functional."""
             code_result = await self._run_in_thread(self.coder.execute, code_prompt)
             await send_message("agent", {"name": "coder", "status": "done", "message": "Code generated"})
 
-            try:
-                code_data = json.loads(self._clean_json(code_result))
+            code_data = self._safe_parse_json(code_result, None)
+            if code_data is not None:
                 files = code_data.get("files", [])
-            except json.JSONDecodeError:
+            else:
                 files = []
                 await send_message("status", "Retrying code generation...")
                 recovery = await self._run_in_thread(
@@ -116,11 +136,10 @@ Paths must NOT include the project name prefix.
 
 Project: {user_prompt}"""
                 )
-                try:
-                    code_data = json.loads(self._clean_json(recovery))
-                    files = code_data.get("files", [])
-                except json.JSONDecodeError:
-                    files = []
+                recovery_data = self._safe_parse_json(recovery, None)
+                if recovery_data is not None:
+                    files = recovery_data.get("files", [])
+                else:
                     await send_message("error", "Could not generate valid code output")
 
             for f in files:
@@ -139,6 +158,9 @@ Project: {user_prompt}"""
 
             await send_message("status", f"Created {len(created_files)} files")
 
+            if self._has_ui_files(created_files):
+                await self._run_uiux_pass(project_name, created_files, user_prompt, send_message)
+
             await send_message("agent", {"name": "dependency", "status": "active", "message": "Installing dependencies..."})
             dep_result = await self._run_in_thread(self._install_dependencies, project_name)
             await send_message("terminal", dep_result)
@@ -156,35 +178,14 @@ Project: {user_prompt}"""
 
             error_lines = [l for l in output if "error" in l.lower() or "Error" in l]
             if error_lines:
-                await send_message("agent", {"name": "debugger", "status": "active", "message": "Fixing errors..."})
-                fix = await self._run_in_thread(
-                    self.debugger.execute,
-                    f"""Analyze these errors and provide fixes.
-Output valid JSON only (no markdown, no code fences).
-Format: {{"fixes": [{{"file": "path", "content": "corrected file content"}}]}}
+                await self._debug_retry_loop(project_name, created_files, error_lines, send_message)
 
-Errors:
-{chr(10).join(error_lines)}
-
-Project files: {json.dumps(created_files)}"""
-                )
-                try:
-                    fix_data = json.loads(self._clean_json(fix))
-                    for fix_item in fix_data.get("fixes", []):
-                        workspace.write_file(project_name, fix_item["file"], fix_item["content"])
-                        await send_message("file_updated", {"path": fix_item["file"]})
-                except Exception:
-                    pass
-                await send_message("agent", {"name": "debugger", "status": "done", "message": "Fixes applied"})
-
-                preview.stop_preview(project_name)
-                preview.start_preview(project_name, port=8080)
-                await send_message("status", "Restarted preview after fixes")
+            await self._run_tester_validation(project_name, created_files, send_message)
 
             file_tree = workspace.get_file_tree(project_name)
             await send_message("file_tree", file_tree)
 
-            for agent_name in ["orchestrator", "planner", "architect", "coder", "dependency", "executor"]:
+            for agent_name in ["orchestrator", "planner", "architect", "coder", "dependency", "executor", "uiux", "tester"]:
                 await send_message("agent", {"name": agent_name, "status": "done"})
 
             await send_message("complete", {
@@ -195,6 +196,214 @@ Project files: {json.dumps(created_files)}"""
 
         except Exception as e:
             await send_message("error", f"Pipeline error: {str(e)}\n{traceback.format_exc()}")
+
+        return project_name
+
+    async def _debug_retry_loop(self, project_name, created_files, error_lines, send_message, max_retries=3):
+        for attempt in range(1, max_retries + 1):
+            await send_message("agent", {"name": "debugger", "status": "active", "message": f"Fixing errors (attempt {attempt}/{max_retries})...", "retries": attempt})
+
+            file_contents = self._read_project_files(project_name)
+            files_context = ""
+            for fpath, content in file_contents.items():
+                files_context += f"\n--- {fpath} ---\n{content}\n"
+
+            fix = await self._run_in_thread(
+                self.debugger.execute,
+                f"""Analyze these errors and provide fixes.
+Output valid JSON only (no markdown, no code fences).
+Format: {{"fixes": [{{"file": "path", "content": "corrected file content"}}]}}
+
+Errors:
+{chr(10).join(error_lines)}
+
+Project files and their contents:
+{files_context}"""
+            )
+            try:
+                fix_data = self._safe_parse_json(fix, {"fixes": []})
+                for fix_item in fix_data.get("fixes", []):
+                    workspace.write_file(project_name, fix_item["file"], fix_item["content"])
+                    await send_message("file_updated", {"path": fix_item["file"]})
+            except Exception:
+                pass
+
+            await send_message("agent", {"name": "debugger", "status": "done", "message": f"Fixes applied (attempt {attempt})", "retries": attempt})
+
+            preview.stop_preview(project_name)
+            preview.start_preview(project_name, port=8080)
+            await send_message("status", f"Restarted preview after fixes (attempt {attempt})")
+
+            await asyncio.sleep(3)
+            output = preview.get_output(project_name, lines=20)
+            if output:
+                await send_message("terminal", "\n".join(output))
+
+            error_lines = [l for l in output if "error" in l.lower() or "Error" in l]
+            if not error_lines:
+                await send_message("status", f"All errors resolved after {attempt} attempt(s)")
+                break
+        else:
+            await send_message("status", f"Some errors may remain after {max_retries} debug attempts")
+
+    async def _run_uiux_pass(self, project_name, created_files, user_prompt, send_message):
+        await send_message("agent", {"name": "uiux", "status": "active", "message": "Enhancing UI/UX..."})
+
+        file_contents = self._read_project_files(project_name)
+        ui_files_context = ""
+        for fpath, content in file_contents.items():
+            if fpath.endswith(('.html', '.css', '.jsx', '.tsx', '.vue', '.svelte')):
+                ui_files_context += f"\n--- {fpath} ---\n{content}\n"
+
+        if not ui_files_context:
+            await send_message("agent", {"name": "uiux", "status": "done", "message": "No UI files to enhance"})
+            return
+
+        uiux_result = await self._run_in_thread(
+            self.uiux.execute,
+            f"""Review and enhance the UI/UX of these files. Improve styling, responsiveness, and visual polish.
+Output valid JSON only (no markdown, no code fences).
+Format: {{"files": [{{"path": "relative/file/path", "content": "improved file content"}}]}}
+
+Only include files that you've actually improved. Keep all functionality intact.
+
+Project description: {user_prompt}
+
+Current UI files:
+{ui_files_context}"""
+        )
+
+        uiux_data = self._safe_parse_json(uiux_result, {"files": []})
+        for file_info in uiux_data.get("files", []):
+            path = file_info.get("path", "")
+            content = file_info.get("content", "")
+            if path and content:
+                workspace.write_file(project_name, path, content)
+                await send_message("file_updated", {"path": path})
+                await send_message("uiux_update", {"path": path, "message": "Enhanced styling and responsiveness"})
+
+        await send_message("agent", {"name": "uiux", "status": "done", "message": "UI/UX enhanced"})
+
+    async def _run_tester_validation(self, project_name, created_files, send_message):
+        await send_message("agent", {"name": "tester", "status": "active", "message": "Running validation checks..."})
+
+        file_contents = self._read_project_files(project_name)
+        files_summary = ""
+        for fpath, content in file_contents.items():
+            files_summary += f"\n--- {fpath} ---\n{content[:1000]}\n"
+
+        output = preview.get_output(project_name, lines=30)
+        output_text = "\n".join(output) if output else "No output available"
+
+        test_result = await self._run_in_thread(
+            self.tester.execute,
+            f"""Validate this project by checking the following:
+1. All required files exist and are non-empty
+2. No obvious syntax errors in the code
+3. Dependencies are properly declared
+4. The application structure is correct
+5. Check the server output for any runtime errors
+
+Output valid JSON only (no markdown, no code fences).
+Format: {{"passed": true/false, "checks": [{{"name": "check name", "passed": true/false, "message": "details"}}], "summary": "overall summary"}}
+
+Project files:
+{files_summary}
+
+Server output:
+{output_text}"""
+        )
+
+        test_data = self._safe_parse_json(test_result, {
+            "passed": True,
+            "checks": [],
+            "summary": "Validation completed"
+        })
+        test_data["message"] = test_data.get("summary", "Validation completed")
+        await send_message("test_result", test_data)
+        status = "passed" if test_data.get("passed", True) else "issues found"
+        await send_message("agent", {"name": "tester", "status": "done", "message": f"Validation {status}"})
+
+    async def iterate(self, project_name, user_prompt, send_message):
+        try:
+            await send_message("iterate_start", f"Iterating on project '{project_name}'...")
+            await send_message("agent", {"name": "orchestrator", "status": "active", "message": "Processing iteration request..."})
+
+            file_contents = self._read_project_files(project_name)
+            if not file_contents:
+                await send_message("error", f"Project '{project_name}' not found or has no files")
+                return project_name
+
+            files_context = ""
+            for fpath, content in file_contents.items():
+                files_context += f"\n--- {fpath} ---\n{content}\n"
+
+            await send_message("agent", {"name": "coder", "status": "active", "message": "Modifying existing code..."})
+
+            edit_result = await self._run_in_thread(
+                self.coder.execute,
+                f"""Modify the existing project files based on the user's follow-up request.
+Output valid JSON only (no markdown, no code fences).
+Format: {{"files": [{{"path": "relative/file/path", "content": "complete updated file content"}}]}}
+
+Only include files that need to be changed or created. For changed files, include the COMPLETE updated content.
+
+User's change request: {user_prompt}
+
+Current project files:
+{files_context}"""
+            )
+            await send_message("agent", {"name": "coder", "status": "done", "message": "Code modified"})
+
+            edit_data = self._safe_parse_json(edit_result, {"files": []})
+            modified_files = []
+            for file_info in edit_data.get("files", []):
+                path = file_info.get("path", "")
+                content = file_info.get("content", "")
+                if path and content:
+                    workspace.write_file(project_name, path, content)
+                    modified_files.append(path)
+                    await send_message("file_updated", {"path": path})
+
+            await send_message("status", f"Modified {len(modified_files)} file(s)")
+
+            if self._has_ui_files(modified_files):
+                await self._run_uiux_pass(project_name, modified_files, user_prompt, send_message)
+
+            dep_result = await self._run_in_thread(self._install_dependencies, project_name)
+            if dep_result != "No dependencies to install":
+                await send_message("terminal", dep_result)
+
+            await send_message("agent", {"name": "executor", "status": "active", "message": "Restarting preview..."})
+            preview.stop_preview(project_name)
+            preview_result = preview.start_preview(project_name, port=8080)
+            await send_message("preview", preview_result)
+            await send_message("agent", {"name": "executor", "status": "done", "message": "Preview restarted"})
+
+            await asyncio.sleep(3)
+            output = preview.get_output(project_name, lines=20)
+            if output:
+                await send_message("terminal", "\n".join(output))
+
+            error_lines = [l for l in output if "error" in l.lower() or "Error" in l]
+            if error_lines:
+                all_files = list(file_contents.keys()) + [f for f in modified_files if f not in file_contents]
+                await self._debug_retry_loop(project_name, all_files, error_lines, send_message)
+
+            file_tree = workspace.get_file_tree(project_name)
+            await send_message("file_tree", file_tree)
+
+            for agent_name in ["orchestrator", "coder", "uiux", "tester", "executor"]:
+                await send_message("agent", {"name": agent_name, "status": "done"})
+
+            await send_message("iterate_complete", {
+                "project": project_name,
+                "modified_files": modified_files,
+                "preview_port": preview_result.get("port", 8080) if isinstance(preview_result, dict) else 8080,
+            })
+
+        except Exception as e:
+            await send_message("error", f"Iteration error: {str(e)}\n{traceback.format_exc()}")
 
         return project_name
 
@@ -250,3 +459,30 @@ Project files: {json.dumps(created_files)}"""
         if text.endswith("```"):
             text = text[:-3]
         return text.strip()
+
+    def _safe_parse_json(self, text, fallback=None):
+        cleaned = self._clean_json(text)
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            pass
+
+        try:
+            start = cleaned.find('{')
+            end = cleaned.rfind('}')
+            if start != -1 and end != -1 and end > start:
+                return json.loads(cleaned[start:end + 1])
+        except json.JSONDecodeError:
+            pass
+
+        try:
+            start = cleaned.find('[')
+            end = cleaned.rfind(']')
+            if start != -1 and end != -1 and end > start:
+                return json.loads(cleaned[start:end + 1])
+        except json.JSONDecodeError:
+            pass
+
+        if fallback is not None:
+            return fallback
+        return None

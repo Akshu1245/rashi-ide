@@ -276,10 +276,13 @@ export default function App() {
                     <Chat
                       messages={ws.messages}
                       onSend={ws.sendPrompt}
+                      onIterate={ws.sendIterate}
                       isGenerating={ws.isGenerating}
                       plan={ws.plan}
                       architecture={ws.architecture}
                       onProjectCreated={handleProjectSelect}
+                      currentProject={ws.currentProject}
+                      onNewProject={ws.resetProject}
                     />
                   </ErrorBoundary>
                 )}

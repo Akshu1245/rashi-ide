@@ -74,10 +74,44 @@
   border-color: rgba(255, 255, 255, 0.15);
 }
 
+.terminal-body {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
 .terminal-xterm-container {
   flex: 1;
   overflow: hidden;
   padding: 4px;
+}
+
+.terminal-scroll-btn {
+  position: absolute;
+  bottom: 12px;
+  right: 16px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(88, 166, 255, 0.15);
+  border: 1px solid rgba(88, 166, 255, 0.3);
+  color: #60a5fa;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 10;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.terminal-scroll-btn:hover {
+  background: rgba(88, 166, 255, 0.25);
+  border-color: rgba(88, 166, 255, 0.5);
+  transform: scale(1.1);
 }
 
 .terminal-xterm-container .xterm {
