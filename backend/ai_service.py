@@ -1,3 +1,4 @@
+import asyncio
 import os
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
@@ -88,18 +89,35 @@ def chat_completion(system_prompt, user_message, model_type="quick"):
 
 async def chat_completion_stream(system_prompt, user_message, model_type="quick"):
     model = _get_model() if _settings.get("model") else MODELS.get(model_type, MODELS["quick"])
-    stream = get_client().chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
-        ],
-        max_completion_tokens=16384,
-        stream=True,
-    )
-    for chunk in stream:
-        if chunk.choices and chunk.choices[0].delta.content:
-            yield chunk.choices[0].delta.content
+    queue = asyncio.Queue()
+    loop = asyncio.get_running_loop()
+
+    def _stream_in_thread():
+        try:
+            stream = get_client().chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                max_completion_tokens=16384,
+                stream=True,
+            )
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    loop.call_soon_threadsafe(queue.put_nowait, chunk.choices[0].delta.content)
+        except Exception:
+            pass
+        finally:
+            loop.call_soon_threadsafe(queue.put_nowait, None)
+
+    loop.run_in_executor(None, _stream_in_thread)
+
+    while True:
+        token = await queue.get()
+        if token is None:
+            break
+        yield token
 
 
 @retry(
