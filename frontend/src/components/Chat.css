@@ -373,6 +373,25 @@
   color: #c9a0ff;
 }
 
+.research-msg {
+  flex-direction: column;
+  background: rgba(0, 200, 83, 0.06);
+  border-left: 3px solid #00c853;
+  padding: 14px;
+  border-radius: 10px;
+}
+
+.research-msg .msg-body p {
+  color: #a0d8b0;
+  margin: 4px 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.research-msg .msg-label {
+  color: #00e676;
+}
+
 .plan-msg, .arch-msg {
   flex-direction: column;
   background: rgba(22, 27, 34, 0.6);

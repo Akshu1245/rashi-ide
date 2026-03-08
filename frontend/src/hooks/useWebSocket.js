@@ -113,6 +113,9 @@ export function useWebSocket() {
         setArchitecture(data);
         setMessages(prev => [...prev, { type: 'architecture', data, time: Date.now() }]);
         break;
+      case 'research':
+        setMessages(prev => [...prev, { type: 'research', data, time: Date.now() }]);
+        break;
       case 'file_created':
         setMessages(prev => [...prev, { type: 'file', text: `Created: ${data.path}`, time: Date.now() }]);
         break;

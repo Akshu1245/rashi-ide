@@ -382,6 +382,33 @@ function MessageItem({ msg, index }) {
     );
   }
 
+  if (msg.type === 'research' && msg.data) {
+    const rd = msg.data;
+    return (
+      <div className="chat-msg research-msg msg-animate" style={{ animationDelay: staggerDelay }}>
+        <div className="msg-header">
+          <span className="msg-icon">🔍</span>
+          <span className="msg-label">Research Findings</span>
+        </div>
+        <div className="msg-body">
+          {rd.recommended_stack && (
+            <p><strong>Stack:</strong> {Object.entries(rd.recommended_stack).filter(([,v]) => v).map(([k,v]) => `${k}: ${v}`).join(' · ')}</p>
+          )}
+          {rd.approach && <p><strong>Approach:</strong> {rd.approach}</p>}
+          {rd.key_libraries && rd.key_libraries.length > 0 && (
+            <p><strong>Libraries:</strong> {rd.key_libraries.map(l => typeof l === 'string' ? l : l.name || l).join(', ')}</p>
+          )}
+          {rd.patterns && rd.patterns.length > 0 && (
+            <p><strong>Patterns:</strong> {rd.patterns.join(', ')}</p>
+          )}
+          {rd.considerations && rd.considerations.length > 0 && (
+            <p><strong>Considerations:</strong> {rd.considerations.join('; ')}</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (msg.type === 'architecture' && msg.data) {
     return (
       <div className="chat-msg arch-msg msg-animate" style={{ animationDelay: staggerDelay }}>

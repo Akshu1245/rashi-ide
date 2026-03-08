@@ -18,11 +18,13 @@ const AGENT_DESCRIPTIONS = {
 
 const PIPELINE_STAGES = [
   { key: 'planner', label: 'Plan' },
+  { key: 'researcher', label: 'Research' },
   { key: 'architect', label: 'Design' },
   { key: 'coder', label: 'Code' },
   { key: 'uiux', label: 'UI/UX' },
   { key: 'debugger', label: 'Debug' },
   { key: 'tester', label: 'Test' },
+  { key: 'deployer', label: 'Deploy' },
   { key: 'executor', label: 'Run' },
 ];
 

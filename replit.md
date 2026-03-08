@@ -68,22 +68,24 @@ The system incorporates 70+ prompt files from leading AI coding tools (Cursor, R
 - `iterate` — Modify existing project with follow-up prompt (requires project name)
 - `ping` — Keep-alive
 
-### 12 AI Agents (8 Active in Pipeline)
-**Active in generation pipeline:**
+### 12 AI Agents (ALL Active in Pipeline)
+**Generation pipeline (with parallel execution):**
 1. Orchestrator — Coordinates all agents
-2. Task Planner — Breaks requests into steps
-3. Architect — Designs system architecture
-4. Code Generator — Generates complete source files
-5. UI/UX Agent — Post-generation polish pass for styling/responsiveness
-6. Dependency Manager — Installs packages
-7. Debug Agent — Analyzes and fixes errors (up to 3 retry attempts)
-8. Testing Agent — Validates functionality after preview starts
+2. Task Planner — Breaks requests into steps (runs parallel with Research)
+3. Research Agent — Researches technologies, libraries, patterns (runs parallel with Planner)
+4. Architect — Designs system architecture (informed by research findings)
+5. Code Generator — Generates complete source files (informed by research findings)
+6. UI/UX Agent — Post-generation polish pass for styling/responsiveness
+7. Dependency Manager — Installs packages
+8. Execution Agent — Starts preview server
+9. Debug Agent — Analyzes and fixes errors (up to 3 retry attempts)
+10. Testing Agent — Validates functionality after preview starts
+11. Deployment Agent — Generates deployment configs (Dockerfile, .env.example, etc.)
 
-**Available for iteration/future use:**
-9. File Editor — Makes targeted file modifications
-10. Execution Agent — Runs commands and servers
-11. Research Agent — Technical knowledge
-12. Deployment Agent — Deployment configs
+**Iteration pipeline (with parallel execution):**
+- Research Agent + File Editor Agent run in parallel to analyze changes
+- Code Generator uses research + edit analysis for targeted modifications
+- Full debug/test/deploy cycle follows
 
 ### Prompt Sources (70+)
 Prompts from: Anthropic/Claude, Cursor, Lovable, Replit, Devin, Windsurf, Manus, VSCode Agent, Cline, Bolt, RooCode, v0, Same.dev, Warp, Trae, Kiro, Google/Antigravity, Gemini, Perplexity, Codex CLI, Augment Code, Comet, Emergent, Junie, Leap.new, NotionAi, Orchids.app, Poke, Qoder, Traycer, Xcode, Cluely, CodeBuddy, dia, Z.ai, Amp, and more.

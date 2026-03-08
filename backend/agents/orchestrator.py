@@ -19,6 +19,8 @@ class OrchestratorAgent:
         self.uiux = BaseAgent("uiux", "coding")
         self.tester = BaseAgent("tester", "quick")
         self.editor = BaseAgent("editor", "coding")
+        self.researcher = BaseAgent("researcher", "planning")
+        self.deployer = BaseAgent("deployer", "quick")
 
     async def _run_in_thread(self, fn, *args):
         loop = asyncio.get_event_loop()
@@ -54,7 +56,9 @@ class OrchestratorAgent:
             await send_message("agent", {"name": "orchestrator", "status": "active", "message": "Analyzing your request..."})
 
             await send_message("agent", {"name": "planner", "status": "active", "message": "Creating task plan..."})
-            plan = await self._run_in_thread(
+            await send_message("agent", {"name": "researcher", "status": "active", "message": "Researching technologies..."})
+
+            plan_task = self._run_in_thread(
                 self.planner.execute,
                 f"""Analyze this user request and create a structured build plan.
 Output valid JSON only (no markdown, no code fences).
@@ -65,7 +69,40 @@ Fields:
 
 User request: {user_prompt}"""
             )
+
+            research_task = self._run_in_thread(
+                self.researcher.execute,
+                f"""Research the best technologies, frameworks, libraries, and patterns for this project.
+Output valid JSON only (no markdown, no code fences).
+Fields:
+- "recommended_stack": object with "frontend", "backend", "database" (use null for irrelevant ones)
+- "key_libraries": array of library names with brief reasons
+- "patterns": array of design patterns or best practices to follow
+- "considerations": array of important technical considerations
+- "code_examples": array of brief code snippet hints for tricky parts
+
+User request: {user_prompt}"""
+            )
+
+            results = await asyncio.gather(plan_task, research_task, return_exceptions=True)
+            plan = results[0] if not isinstance(results[0], Exception) else ""
+            research = results[1] if not isinstance(results[1], Exception) else ""
+            if isinstance(results[0], Exception):
+                await send_message("status", "Planner encountered an issue, using defaults...")
+            if isinstance(results[1], Exception):
+                await send_message("status", "Research encountered an issue, proceeding without...")
+
             await send_message("agent", {"name": "planner", "status": "done", "message": "Plan created"})
+
+            research_data = self._safe_parse_json(research, {
+                "recommended_stack": {},
+                "key_libraries": [],
+                "patterns": [],
+                "considerations": [],
+                "code_examples": []
+            })
+            await send_message("agent", {"name": "researcher", "status": "done", "message": "Research complete"})
+            await send_message("research", research_data)
 
             plan_data = self._safe_parse_json(plan, {
                 "project_name": "my-project",
@@ -84,6 +121,8 @@ User request: {user_prompt}"""
             workspace.create_project(project_name)
             await send_message("status", f"Created project: {project_name}")
 
+            research_context = json.dumps(research_data, indent=2)
+
             await send_message("agent", {"name": "architect", "status": "active", "message": "Designing architecture..."})
             arch = await self._run_in_thread(
                 self.architect.execute,
@@ -95,7 +134,10 @@ Fields:
 - "dependencies": array of package names needed
 
 Project: {plan_data.get('description', user_prompt)}
-Tasks: {json.dumps(plan_data.get('tasks', []))}"""
+Tasks: {json.dumps(plan_data.get('tasks', []))}
+
+Research findings (use these to inform your architecture decisions):
+{research_context}"""
             )
             await send_message("agent", {"name": "architect", "status": "done", "message": "Architecture designed"})
 
@@ -115,6 +157,9 @@ Bad: "{project_name}/index.html"
 Project description: {plan_data.get('description', user_prompt)}
 Architecture: {json.dumps(arch_data)}
 User request: {user_prompt}
+
+Research findings (use recommended libraries and patterns):
+{research_context}
 
 Generate ALL files needed for a complete, working application. Include package.json if node, requirements.txt if python, and all source files.
 Do not use placeholder text. Every file must be complete and functional."""
@@ -182,10 +227,12 @@ Project: {user_prompt}"""
 
             await self._run_tester_validation(project_name, created_files, send_message)
 
+            await self._run_deployer(project_name, created_files, arch_data, send_message)
+
             file_tree = workspace.get_file_tree(project_name)
             await send_message("file_tree", file_tree)
 
-            for agent_name in ["orchestrator", "planner", "architect", "coder", "dependency", "executor", "uiux", "tester"]:
+            for agent_name in ["orchestrator", "planner", "architect", "coder", "researcher", "dependency", "executor", "uiux", "tester", "deployer"]:
                 await send_message("agent", {"name": agent_name, "status": "done"})
 
             await send_message("complete", {
@@ -324,6 +371,44 @@ Server output:
         status = "passed" if test_data.get("passed", True) else "issues found"
         await send_message("agent", {"name": "tester", "status": "done", "message": f"Validation {status}"})
 
+    async def _run_deployer(self, project_name, created_files, arch_data, send_message):
+        try:
+            await send_message("agent", {"name": "deployer", "status": "active", "message": "Generating deployment config..."})
+
+            file_contents = self._read_project_files(project_name)
+            file_list = "\n".join(f"- {f}" for f in file_contents.keys())
+            framework = arch_data.get("framework", "unknown") if isinstance(arch_data, dict) else "unknown"
+
+            deploy_result = await self._run_in_thread(
+                self.deployer.execute,
+                f"""Generate deployment configuration files for this project.
+Output valid JSON only (no markdown, no code fences).
+Format: {{"files": [{{"path": "relative/file/path", "content": "file content"}}]}}
+
+Only generate deployment files that don't already exist. Choose from:
+- Dockerfile (if not present)
+- .dockerignore (if not present)
+- .env.example (if not present)
+- deploy.sh or start script (if not present)
+
+Framework: {framework}
+Existing files:
+{file_list}"""
+            )
+
+            deploy_data = self._safe_parse_json(deploy_result, {"files": []})
+            existing = set(file_contents.keys())
+            for file_info in deploy_data.get("files", []):
+                path = file_info.get("path", "")
+                content = file_info.get("content", "")
+                if path and content and path not in existing:
+                    workspace.write_file(project_name, path, content)
+                    await send_message("file_created", {"path": path, "size": len(content)})
+
+            await send_message("agent", {"name": "deployer", "status": "done", "message": "Deployment config ready"})
+        except Exception as e:
+            await send_message("agent", {"name": "deployer", "status": "done", "message": f"Skipped: {str(e)[:50]}"})
+
     async def iterate(self, project_name, user_prompt, send_message):
         try:
             await send_message("iterate_start", f"Iterating on project '{project_name}'...")
@@ -338,6 +423,48 @@ Server output:
             for fpath, content in file_contents.items():
                 files_context += f"\n--- {fpath} ---\n{content}\n"
 
+            await send_message("agent", {"name": "researcher", "status": "active", "message": "Researching for changes..."})
+            await send_message("agent", {"name": "editor", "status": "active", "message": "Analyzing changes needed..."})
+
+            research_task = self._run_in_thread(
+                self.researcher.execute,
+                f"""Research the best approach for this modification request.
+Output valid JSON only (no markdown, no code fences).
+Fields:
+- "approach": brief description of the best approach
+- "key_libraries": array of any new libraries needed
+- "patterns": array of patterns to apply
+- "considerations": array of things to be careful about
+
+User's change request: {user_prompt}
+Existing files: {', '.join(file_contents.keys())}"""
+            )
+
+            editor_task = self._run_in_thread(
+                self.editor.execute,
+                f"""Analyze which files need to be modified for this change request.
+Output valid JSON only (no markdown, no code fences).
+Format: {{"analysis": "brief analysis", "files_to_modify": ["file1", "file2"], "files_to_create": ["file3"], "files_to_delete": []}}
+
+User's change request: {user_prompt}
+
+Current project files:
+{files_context}"""
+            )
+
+            results = await asyncio.gather(research_task, editor_task, return_exceptions=True)
+            research = results[0] if not isinstance(results[0], Exception) else ""
+            edit_analysis = results[1] if not isinstance(results[1], Exception) else ""
+
+            research_data = self._safe_parse_json(research, {"approach": "", "key_libraries": [], "patterns": [], "considerations": []})
+            await send_message("agent", {"name": "researcher", "status": "done", "message": "Research complete"})
+            await send_message("research", research_data)
+
+            analysis_data = self._safe_parse_json(edit_analysis, {"analysis": "", "files_to_modify": [], "files_to_create": [], "files_to_delete": []})
+            await send_message("agent", {"name": "editor", "status": "done", "message": f"Identified {len(analysis_data.get('files_to_modify', []))} files to change"})
+
+            research_context = json.dumps(research_data, indent=2)
+
             await send_message("agent", {"name": "coder", "status": "active", "message": "Modifying existing code..."})
 
             edit_result = await self._run_in_thread(
@@ -349,6 +476,11 @@ Format: {{"files": [{{"path": "relative/file/path", "content": "complete updated
 Only include files that need to be changed or created. For changed files, include the COMPLETE updated content.
 
 User's change request: {user_prompt}
+
+Research findings:
+{research_context}
+
+File analysis: {json.dumps(analysis_data)}
 
 Current project files:
 {files_context}"""
@@ -364,6 +496,11 @@ Current project files:
                     workspace.write_file(project_name, path, content)
                     modified_files.append(path)
                     await send_message("file_updated", {"path": path})
+
+            for del_path in analysis_data.get("files_to_delete", []):
+                if del_path in file_contents and del_path not in modified_files:
+                    workspace.delete_file(project_name, del_path)
+                    await send_message("status", f"Deleted {del_path}")
 
             await send_message("status", f"Modified {len(modified_files)} file(s)")
 
@@ -393,7 +530,7 @@ Current project files:
             file_tree = workspace.get_file_tree(project_name)
             await send_message("file_tree", file_tree)
 
-            for agent_name in ["orchestrator", "coder", "uiux", "tester", "executor"]:
+            for agent_name in ["orchestrator", "researcher", "editor", "coder", "uiux", "executor"]:
                 await send_message("agent", {"name": agent_name, "status": "done"})
 
             await send_message("iterate_complete", {
