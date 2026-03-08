@@ -1,0 +1,25 @@
+{
+  "name": "workspace",
+  "version": "1.0.0",
+  "description": "<p align=\"center\">   Support my work here:    <a href=\"https://bags.fm/DEffWzJyaFRNyA4ogUox631hfHuv3KLeCcpBh2ipBAGS\">Bags.fm</a> •   <a href=\"https://jup.ag/tokens/DEffWzJyaFRNyA4ogUox631hfHuv3KLeCcpBh2ipBAGS\">Jupiter</a> •   <a href=\"https://photon-sol.tinyastro.io/en/lp/Qa5ZCCwrWoPYckNXXMCAhCsw8gafgYFAu1Qes3Grgv5?handle=\">Photon</a> •   <a href=\"https://dexscreener.com/solana/qa5zccwrwopycknxxmcahcsw8gafgyfau1qes3grgv5\">DEXScreener</a> </p>",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.4",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "allotment": "^1.20.5",
+    "lucide-react": "^0.577.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "vite": "^7.3.1"
+  }
+}
