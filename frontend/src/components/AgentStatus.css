@@ -1,0 +1,125 @@
+.agent-status {
+  padding: 20px;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.agent-section-title {
+  color: var(--text-primary);
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.agent-section-desc {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.agent-grid {
+  margin-bottom: 24px;
+}
+
+.agent-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+  transition: border-color 0.2s;
+}
+
+.agent-card.active {
+  border-color: var(--accent-green);
+  background: rgba(63, 185, 80, 0.05);
+}
+
+.agent-card.done {
+  border-color: var(--accent);
+  opacity: 0.8;
+}
+
+.agent-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.agent-card-icon {
+  font-size: 16px;
+}
+
+.agent-card-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 14px;
+  flex: 1;
+}
+
+.agent-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.agent-badge.idle {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.agent-badge.active {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--accent-green);
+}
+
+.agent-badge.done {
+  background: rgba(88, 166, 255, 0.15);
+  color: var(--accent);
+}
+
+.agent-card-desc {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.agent-card-msg {
+  color: var(--accent-green);
+  font-size: 12px;
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.prompt-sources {
+  margin-top: 8px;
+}
+
+.source-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.source-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.source-name {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.source-meta {
+  color: var(--text-muted);
+  font-size: 11px;
+}

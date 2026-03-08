@@ -1,0 +1,86 @@
+.editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.editor-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.editor-tab-bar {
+  display: flex;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+}
+
+.editor-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  border-right: 1px solid var(--border);
+  background: var(--bg-primary);
+}
+
+.editor-tab.active {
+  background: var(--bg-primary);
+  border-bottom: 2px solid var(--accent);
+}
+
+.editor-tab-name {
+  color: var(--text-primary);
+}
+
+.editor-tab-path {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.editor-content {
+  flex: 1;
+  display: flex;
+  overflow: auto;
+  background: var(--bg-primary);
+}
+
+.editor-line-numbers {
+  padding: 12px 8px 12px 12px;
+  text-align: right;
+  color: var(--text-muted);
+  font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  user-select: none;
+  flex-shrink: 0;
+  min-width: 40px;
+  border-right: 1px solid var(--border);
+}
+
+.line-number {
+  font-size: 12px;
+}
+
+.editor-textarea {
+  flex: 1;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: 'Fira Code', 'Cascadia Code', Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+  tab-size: 2;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
