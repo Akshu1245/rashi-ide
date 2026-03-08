@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './AgentStatus.css';
 
 const AGENT_DESCRIPTIONS = {
@@ -37,18 +37,35 @@ function getPipelineStatus(agents, stageKey) {
 export default function AgentStatus({ agents }) {
   const [promptSources, setPromptSources] = useState([]);
   const [visible, setVisible] = useState(false);
+  const [memory, setMemory] = useState(null);
+  const [memoryExpanded, setMemoryExpanded] = useState(false);
+
+  const fetchMemory = useCallback(() => {
+    fetch('/api/memory')
+      .then(r => r.json())
+      .then(d => setMemory(d))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch('/api/prompts')
       .then(r => r.json())
       .then(d => setPromptSources(d.sources || []))
       .catch(() => {});
-  }, []);
+    fetchMemory();
+  }, [fetchMemory]);
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 50);
     return () => clearTimeout(timer);
   }, []);
+
+  const handleClearMemory = () => {
+    fetch('/api/memory', { method: 'DELETE' })
+      .then(r => r.json())
+      .then(() => fetchMemory())
+      .catch(() => {});
+  };
 
   const allAgents = Object.keys(AGENT_DESCRIPTIONS);
 
@@ -134,6 +151,55 @@ export default function AgentStatus({ agents }) {
           })}
         </div>
       </div>
+
+      {memory && (memory.projects?.length > 0 || memory.patterns?.length > 0 || memory.preferences?.preferred_frameworks?.length > 0) && (
+        <div className="memory-section">
+          <div className="memory-header">
+            <h3 className="agent-section-title" onClick={() => setMemoryExpanded(!memoryExpanded)} style={{ cursor: 'pointer' }}>
+              Agent Memory {memoryExpanded ? '▾' : '▸'}
+            </h3>
+            <button className="memory-clear-btn" onClick={handleClearMemory}>Clear</button>
+          </div>
+          <p className="agent-section-desc">
+            Remembers {memory.projects?.length || 0} past project(s) to improve future generations
+          </p>
+          {memoryExpanded && (
+            <div className="memory-details">
+              {memory.projects?.length > 0 && (
+                <div className="memory-group">
+                  <span className="memory-group-title">Past Projects</span>
+                  {memory.projects.slice(-5).reverse().map((p, i) => (
+                    <div key={i} className="memory-item">
+                      <span className="memory-item-name">{p.name}</span>
+                      <span className="memory-item-desc">{p.description}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {memory.preferences?.preferred_frameworks?.length > 0 && (
+                <div className="memory-group">
+                  <span className="memory-group-title">Preferred Frameworks</span>
+                  <div className="memory-tags">
+                    {memory.preferences.preferred_frameworks.map((fw, i) => (
+                      <span key={i} className="memory-tag">{fw}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {memory.patterns?.length > 0 && (
+                <div className="memory-group">
+                  <span className="memory-group-title">Learned Patterns</span>
+                  <div className="memory-tags">
+                    {memory.patterns.slice(-5).map((p, i) => (
+                      <span key={i} className="memory-tag">{p}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {promptSources.length > 0 && (
         <div className="prompt-sources">

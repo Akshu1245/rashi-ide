@@ -44,7 +44,7 @@ const TEMPLATE_ICONS = {
   globe: <Globe size={20} />,
 };
 
-export default function Chat({ messages, onSend, onIterate, isGenerating, plan, architecture, onProjectCreated, currentProject, onNewProject }) {
+export default function Chat({ messages, onSend, onIterate, isGenerating, plan, architecture, onProjectCreated, currentProject, onNewProject, streamingContent }) {
   const [input, setInput] = useState('');
   const [templates, setTemplates] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -62,7 +62,7 @@ export default function Chat({ messages, onSend, onIterate, isGenerating, plan, 
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, streamingContent]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -239,7 +239,16 @@ export default function Chat({ messages, onSend, onIterate, isGenerating, plan, 
         {messages.map((msg, i) => (
           <MessageItem key={i} msg={msg} index={i} />
         ))}
-        {isGenerating && (
+        {streamingContent && (
+          <div className="chat-msg streaming-msg msg-animate">
+            <span className="msg-icon">🤖</span>
+            <span className="msg-text streaming-text">
+              {streamingContent.content}
+              <span className="streaming-cursor" />
+            </span>
+          </div>
+        )}
+        {isGenerating && !streamingContent && (
           <div className="typing-indicator">
             <span className="typing-dot"></span>
             <span className="typing-dot"></span>

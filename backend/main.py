@@ -17,6 +17,8 @@ from backend.prompt_compiler import get_all_prompt_sources, get_agent_names, com
 from backend.agents.orchestrator import OrchestratorAgent
 from backend.ai_service import get_settings, update_settings
 from backend.templates import get_template_list, create_from_template
+from backend.memory import load_memory, clear_memory
+from backend.terminal import terminal_manager
 
 app = FastAPI(title="Rashi")
 
@@ -131,6 +133,113 @@ async def create_template_project(template_id: str, name: str = None):
         workspace.write_file(project_name, file_path, content)
     tree = workspace.get_file_tree(project_name)
     return {"success": True, "project": project_name, "tree": tree}
+
+
+@app.post("/api/projects/{name}/deploy-package")
+async def deploy_package(name: str):
+    project_path = workspace._safe_project_path(name)
+    if not project_path or not os.path.isdir(project_path):
+        return JSONResponse(status_code=404, content={"error": "Project not found"})
+
+    deploy_files = {}
+
+    existing_files = set()
+    for root, dirs, files in os.walk(project_path):
+        dirs[:] = [d for d in dirs if d != "node_modules" and not d.startswith(".")]
+        for f in files:
+            existing_files.add(os.path.relpath(os.path.join(root, f), project_path))
+
+    has_package_json = "package.json" in existing_files
+    has_requirements = "requirements.txt" in existing_files
+    has_pyproject = "pyproject.toml" in existing_files
+    is_python = has_requirements or has_pyproject
+    is_node = has_package_json
+
+    if "Dockerfile" not in existing_files:
+        if is_node:
+            deploy_files["Dockerfile"] = (
+                "FROM node:20-alpine\n"
+                "WORKDIR /app\n"
+                "COPY package*.json ./\n"
+                "RUN npm ci --only=production\n"
+                "COPY . .\n"
+                "RUN npm run build 2>/dev/null || true\n"
+                "EXPOSE 3000\n"
+                "CMD [\"npm\", \"start\"]\n"
+            )
+        elif is_python:
+            deploy_files["Dockerfile"] = (
+                "FROM python:3.11-slim\n"
+                "WORKDIR /app\n"
+                "COPY requirements.txt* pyproject.toml* ./\n"
+                "RUN pip install --no-cache-dir -r requirements.txt 2>/dev/null || pip install --no-cache-dir . 2>/dev/null || true\n"
+                "COPY . .\n"
+                "EXPOSE 8000\n"
+                "CMD [\"python\", \"main.py\"]\n"
+            )
+        else:
+            deploy_files["Dockerfile"] = (
+                "FROM nginx:alpine\n"
+                "COPY . /usr/share/nginx/html\n"
+                "EXPOSE 80\n"
+                "CMD [\"nginx\", \"-g\", \"daemon off;\"]\n"
+            )
+
+    if ".dockerignore" not in existing_files:
+        deploy_files[".dockerignore"] = (
+            "node_modules\n"
+            ".git\n"
+            ".env\n"
+            "*.log\n"
+            ".DS_Store\n"
+            "__pycache__\n"
+            "*.pyc\n"
+            ".venv\n"
+            "dist\n"
+            "build\n"
+        )
+
+    if "start.sh" not in existing_files:
+        if is_node:
+            deploy_files["start.sh"] = (
+                "#!/bin/bash\n"
+                "set -e\n"
+                "npm install\n"
+                "npm start\n"
+            )
+        elif is_python:
+            deploy_files["start.sh"] = (
+                "#!/bin/bash\n"
+                "set -e\n"
+                "pip install -r requirements.txt 2>/dev/null || pip install . 2>/dev/null || true\n"
+                "python main.py\n"
+            )
+        else:
+            deploy_files["start.sh"] = (
+                "#!/bin/bash\n"
+                "set -e\n"
+                "echo \"Starting static server...\"\n"
+                "python3 -m http.server 8080\n"
+            )
+
+    for file_path, content in deploy_files.items():
+        workspace.write_file(name, file_path, content)
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, dirs, files in os.walk(project_path):
+            dirs[:] = [d for d in dirs if d != "node_modules" and not d.startswith(".")]
+            for file in files:
+                full = os.path.join(root, file)
+                arcname = os.path.relpath(full, project_path)
+                zf.write(full, arcname)
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{name}-deploy.zip"'},
+    )
 
 
 @app.get("/api/projects/{name}/download")
@@ -275,6 +384,18 @@ async def search_files(project: str, q: str = "", case_sensitive: bool = False):
     return {"results": results, "query": q, "total": len(results)}
 
 
+@app.get("/api/memory")
+async def get_memory():
+    memory = load_memory()
+    return memory
+
+
+@app.delete("/api/memory")
+async def delete_memory():
+    memory = clear_memory()
+    return {"success": True, "memory": memory}
+
+
 @app.get("/api/prompts")
 async def list_prompts():
     return {"sources": get_all_prompt_sources()}
@@ -348,6 +469,59 @@ async def websocket_endpoint(ws: WebSocket):
             await send_message("error", str(e))
         except Exception:
             pass
+
+
+@app.websocket("/ws/terminal")
+async def terminal_websocket(ws: WebSocket):
+    await ws.accept()
+    session_id = f"term_{id(ws)}"
+    terminal_manager.create_session(session_id)
+
+    async def read_loop():
+        while True:
+            data = await asyncio.get_event_loop().run_in_executor(
+                None, terminal_manager.read, session_id, 0.05
+            )
+            if data is None:
+                break
+            if data:
+                await ws.send_bytes(data)
+            await asyncio.sleep(0.01)
+
+    read_task = asyncio.create_task(read_loop())
+
+    try:
+        while True:
+            msg = await ws.receive()
+            if msg["type"] == "websocket.disconnect":
+                break
+            if "text" in msg:
+                text = msg["text"]
+                try:
+                    parsed = json.loads(text)
+                    if parsed.get("type") == "resize":
+                        terminal_manager.resize(
+                            session_id,
+                            parsed.get("cols", 80),
+                            parsed.get("rows", 24),
+                        )
+                        continue
+                except (json.JSONDecodeError, TypeError):
+                    pass
+                terminal_manager.write(session_id, text)
+            elif "bytes" in msg:
+                terminal_manager.write(session_id, msg["bytes"])
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        read_task.cancel()
+        try:
+            await read_task
+        except asyncio.CancelledError:
+            pass
+        terminal_manager.destroy_session(session_id)
 
 
 if __name__ == "__main__":

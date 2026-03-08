@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import MonacoEditor from '@monaco-editor/react';
-import { X, Map, WrapText } from 'lucide-react';
+import MonacoEditor, { DiffEditor } from '@monaco-editor/react';
+import { X, Map, WrapText, GitCompare } from 'lucide-react';
 import './Editor.css';
 
 function useLocalStorageBool(key, defaultValue) {
@@ -52,13 +52,14 @@ function getLanguage(filename) {
   return extToLanguage[ext] || 'plaintext';
 }
 
-export default function Editor({ tabs, activeTabIndex, onTabChange, onTabClose, onContentChange, onSave, theme }) {
+export default function Editor({ tabs, activeTabIndex, onTabChange, onTabClose, onContentChange, onSave, theme, fileDiffs }) {
   const editorRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [autoSaved, setAutoSaved] = useState(false);
   const autoSaveTimerRef = useRef(null);
   const [minimapEnabled, setMinimapEnabled] = useLocalStorageBool('editor-minimap', false);
   const [wordWrapEnabled, setWordWrapEnabled] = useLocalStorageBool('editor-wordwrap', false);
+  const [diffMode, setDiffMode] = useState(false);
 
   const activeTab = tabs[activeTabIndex] || null;
 
@@ -185,6 +186,15 @@ export default function Editor({ tabs, activeTabIndex, onTabChange, onTabClose, 
             <WrapText size={14} />
           </button>
           <button
+            className={`editor-diff-toggle${diffMode ? ' active' : ''}`}
+            onClick={() => setDiffMode(!diffMode)}
+            title={diffMode ? 'Hide Diff View' : 'Show Diff View'}
+            disabled={!activeTab || (!isModified && !(fileDiffs && activeTab && fileDiffs[activeTab.path]))}
+          >
+            <GitCompare size={14} />
+            <span className="editor-diff-label">Diff</span>
+          </button>
+          <button
             className={`editor-save-btn${isModified ? ' has-changes' : ''}`}
             onClick={handleSave}
             disabled={!isModified || saving}
@@ -200,7 +210,30 @@ export default function Editor({ tabs, activeTabIndex, onTabChange, onTabClose, 
         </div>
       )}
       <div className="editor-content">
-        {activeTab && (
+        {activeTab && diffMode ? (
+          <DiffEditor
+            key={`diff-${activeTab.project}/${activeTab.path}`}
+            height="100%"
+            language={language}
+            original={
+              fileDiffs && fileDiffs[activeTab.path]
+                ? fileDiffs[activeTab.path].original
+                : activeTab.savedContent
+            }
+            modified={activeTab.content}
+            theme={monacoTheme}
+            options={{
+              minimap: { enabled: false },
+              fontSize: 13,
+              fontFamily: "'Fira Code', 'Cascadia Code', Consolas, monospace",
+              readOnly: true,
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              renderSideBySide: true,
+              padding: { top: 8 },
+            }}
+          />
+        ) : activeTab ? (
           <MonacoEditor
             key={`${activeTab.project}/${activeTab.path}`}
             height="100%"
@@ -225,7 +258,7 @@ export default function Editor({ tabs, activeTabIndex, onTabChange, onTabClose, 
               bracketPairColorization: { enabled: true },
             }}
           />
-        )}
+        ) : null}
       </div>
     </div>
   );

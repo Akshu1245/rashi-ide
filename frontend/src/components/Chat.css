@@ -654,6 +654,37 @@
   word-break: break-word;
 }
 
+.streaming-msg {
+  background: rgba(88, 166, 255, 0.06);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+
+.streaming-text {
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-secondary);
+}
+
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 14px;
+  background: var(--accent);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: streamingBlink 0.8s step-end infinite;
+}
+
+@keyframes streamingBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 .templates-section {
   margin-top: 20px;
   width: 100%;

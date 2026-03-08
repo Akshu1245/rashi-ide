@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Zap, Download, Settings } from 'lucide-react';
+import { Zap, Download, Settings, Rocket } from 'lucide-react';
 import './TopBar.css';
 
 export default function TopBar({ connected, project, isGenerating, onSettingsClick }) {
   const [stats, setStats] = useState(null);
+  const [deploying, setDeploying] = useState(false);
 
   useEffect(() => {
     if (!project) {
@@ -35,6 +36,28 @@ export default function TopBar({ connected, project, isGenerating, onSettingsCli
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleDeploy = async () => {
+    if (!project || deploying) return;
+    setDeploying(true);
+    try {
+      const res = await fetch(`/api/projects/${encodeURIComponent(project)}/deploy-package`, { method: 'POST' });
+      if (!res.ok) throw new Error('Deploy package failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${project}-deploy.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Deploy package error:', e);
+    } finally {
+      setDeploying(false);
+    }
   };
 
   return (
@@ -77,9 +100,15 @@ export default function TopBar({ connected, project, isGenerating, onSettingsCli
           {connected ? 'Connected' : 'Disconnected'}
         </span>
         {project && (
-          <button className="topbar-download-btn" onClick={handleDownload} title="Download project as ZIP">
-            <Download size={16} />
-          </button>
+          <>
+            <button className="topbar-deploy-btn" onClick={handleDeploy} disabled={deploying} title="Deploy - Download production-ready package">
+              <Rocket size={16} />
+              {deploying ? 'Packaging...' : 'Deploy'}
+            </button>
+            <button className="topbar-download-btn" onClick={handleDownload} title="Download project as ZIP">
+              <Download size={16} />
+            </button>
+          </>
         )}
         <button className="topbar-settings-btn" onClick={onSettingsClick} title="Settings">
           <Settings size={16} />

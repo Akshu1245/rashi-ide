@@ -318,6 +318,7 @@ export default function App() {
                       onProjectCreated={handleProjectSelect}
                       currentProject={ws.currentProject}
                       onNewProject={ws.resetProject}
+                      streamingContent={ws.streamingContent}
                     />
                   </ErrorBoundary>
                 )}
@@ -331,6 +332,7 @@ export default function App() {
                       onContentChange={handleContentChange}
                       onSave={handleSave}
                       theme={theme}
+                      fileDiffs={ws.fileDiffs}
                     />
                   </ErrorBoundary>
                 )}

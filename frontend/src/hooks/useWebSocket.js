@@ -12,6 +12,8 @@ export function useWebSocket() {
   const [architecture, setArchitecture] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [latestEvent, setLatestEvent] = useState(null);
+  const [streamingContent, setStreamingContent] = useState(null);
+  const [fileDiffs, setFileDiffs] = useState({});
   const wsRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const mountedRef = useRef(true);
@@ -118,9 +120,17 @@ export function useWebSocket() {
         break;
       case 'file_created':
         setMessages(prev => [...prev, { type: 'file', text: `Created: ${data.path}`, time: Date.now() }]);
+        setFileDiffs(prev => ({
+          ...prev,
+          [data.path]: { original: '', modified: null }
+        }));
         break;
       case 'file_updated':
         setMessages(prev => [...prev, { type: 'file', text: `Updated: ${data.path}`, time: Date.now() }]);
+        setFileDiffs(prev => {
+          if (prev[data.path]) return prev;
+          return { ...prev, [data.path]: { original: data.previousContent || null, modified: null } };
+        });
         break;
       case 'file_tree':
         setFileTree(data);
@@ -160,6 +170,16 @@ export function useWebSocket() {
         break;
       case 'uiux_update':
         setMessages(prev => [...prev, { type: 'uiux_update', text: data.message || data, data, time: Date.now() }]);
+        break;
+      case 'agent_stream':
+        if (data.done) {
+          setStreamingContent(null);
+        } else {
+          setStreamingContent(prev => ({
+            agent: data.agent,
+            content: (prev?.content || '') + (data.token || '')
+          }));
+        }
         break;
       case 'pong':
         break;
@@ -212,6 +232,7 @@ export function useWebSocket() {
       setPreviewInfo(null);
       setPlan(null);
       setArchitecture(null);
+      setFileDiffs({});
       wsRef.current.send(JSON.stringify({ action: 'generate', prompt }));
     } else {
       setMessages(prev => [...prev, { type: 'error', text: 'Not connected to server. Reconnecting...', time: Date.now() }]);
@@ -224,6 +245,7 @@ export function useWebSocket() {
       setIsGenerating(true);
       lastPromptRef.current = prompt;
       setMessages(prev => [...prev, { type: 'status', text: `You: ${prompt}`, time: Date.now() }]);
+      setFileDiffs({});
       wsRef.current.send(JSON.stringify({ action: 'iterate', prompt, project }));
     } else {
       setMessages(prev => [...prev, { type: 'error', text: 'Not connected to server. Reconnecting...', time: Date.now() }]);
@@ -241,6 +263,8 @@ export function useWebSocket() {
     setPlan(null);
     setArchitecture(null);
     setIsGenerating(false);
+    setStreamingContent(null);
+    setFileDiffs({});
   }, []);
 
   return {
@@ -256,6 +280,8 @@ export function useWebSocket() {
     architecture,
     isGenerating,
     latestEvent,
+    streamingContent,
+    fileDiffs,
     sendPrompt,
     sendIterate,
     refreshFileTree,

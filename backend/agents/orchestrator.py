@@ -6,6 +6,7 @@ import subprocess
 import traceback
 from backend.agents.base import BaseAgent
 from backend import workspace, preview
+from backend.memory import load_memory, save_project_summary, save_pattern, get_memory_context
 
 
 class OrchestratorAgent:
@@ -25,6 +26,19 @@ class OrchestratorAgent:
     async def _run_in_thread(self, fn, *args):
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, fn, *args)
+
+    async def _run_streaming(self, agent, prompt, agent_name, send_message):
+        collected = []
+        try:
+            async for token in agent.execute_stream(prompt):
+                collected.append(token)
+                await send_message("agent_stream", {"agent": agent_name, "token": token, "done": False})
+        except Exception:
+            if not collected:
+                result = await self._run_in_thread(agent.execute, prompt)
+                collected.append(result)
+        await send_message("agent_stream", {"agent": agent_name, "done": True})
+        return "".join(collected)
 
     def _read_project_files(self, project_name):
         file_tree = workspace.get_file_tree(project_name)
@@ -58,6 +72,9 @@ class OrchestratorAgent:
             await send_message("agent", {"name": "planner", "status": "active", "message": "Creating task plan..."})
             await send_message("agent", {"name": "researcher", "status": "active", "message": "Researching technologies..."})
 
+            memory_context = get_memory_context()
+            memory_section = f"\n\nUser history and preferences (use to inform decisions):\n{memory_context}" if memory_context else ""
+
             plan_task = self._run_in_thread(
                 self.planner.execute,
                 f"""Analyze this user request and create a structured build plan.
@@ -67,7 +84,7 @@ Fields:
 - "description": one sentence description
 - "tasks": array of task objects, each with "id", "name", "description"
 
-User request: {user_prompt}"""
+User request: {user_prompt}{memory_section}"""
             )
 
             research_task = self._run_in_thread(
@@ -81,7 +98,7 @@ Fields:
 - "considerations": array of important technical considerations
 - "code_examples": array of brief code snippet hints for tricky parts
 
-User request: {user_prompt}"""
+User request: {user_prompt}{memory_section}"""
             )
 
             results = await asyncio.gather(plan_task, research_task, return_exceptions=True)
@@ -164,7 +181,7 @@ Research findings (use recommended libraries and patterns):
 Generate ALL files needed for a complete, working application. Include package.json if node, requirements.txt if python, and all source files.
 Do not use placeholder text. Every file must be complete and functional."""
 
-            code_result = await self._run_in_thread(self.coder.execute, code_prompt)
+            code_result = await self._run_streaming(self.coder, code_prompt, "coder", send_message)
             await send_message("agent", {"name": "coder", "status": "done", "message": "Code generated"})
 
             code_data = self._safe_parse_json(code_result, None)
@@ -240,6 +257,15 @@ Project: {user_prompt}"""
                 "files": created_files,
                 "preview_port": preview_result.get("port", 8080) if isinstance(preview_result, dict) else 8080,
             })
+
+            try:
+                stack = research_data.get("recommended_stack", {})
+                save_project_summary(project_name, plan_data.get("description", user_prompt), stack, created_files)
+                for pattern in research_data.get("patterns", []):
+                    if isinstance(pattern, str):
+                        save_pattern(pattern)
+            except Exception:
+                pass
 
         except Exception as e:
             await send_message("error", f"Pipeline error: {str(e)}\n{traceback.format_exc()}")
@@ -467,9 +493,7 @@ Current project files:
 
             await send_message("agent", {"name": "coder", "status": "active", "message": "Modifying existing code..."})
 
-            edit_result = await self._run_in_thread(
-                self.coder.execute,
-                f"""Modify the existing project files based on the user's follow-up request.
+            edit_prompt = f"""Modify the existing project files based on the user's follow-up request.
 Output valid JSON only (no markdown, no code fences).
 Format: {{"files": [{{"path": "relative/file/path", "content": "complete updated file content"}}]}}
 
@@ -484,7 +508,8 @@ File analysis: {json.dumps(analysis_data)}
 
 Current project files:
 {files_context}"""
-            )
+
+            edit_result = await self._run_streaming(self.coder, edit_prompt, "coder", send_message)
             await send_message("agent", {"name": "coder", "status": "done", "message": "Code modified"})
 
             edit_data = self._safe_parse_json(edit_result, {"files": []})

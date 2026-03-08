@@ -252,6 +252,41 @@
   cursor: not-allowed;
 }
 
+.editor-diff-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.editor-diff-toggle:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.editor-diff-toggle.active {
+  background: linear-gradient(135deg, #f5a623, #e8962e);
+  color: #fff;
+  border-color: #f5a623;
+}
+
+.editor-diff-toggle:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.editor-diff-label {
+  font-weight: 500;
+}
+
 .editor-content {
   flex: 1;
   overflow: hidden;
