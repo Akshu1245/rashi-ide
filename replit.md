@@ -22,10 +22,10 @@ The system incorporates 70+ prompt files from leading AI coding tools (Cursor, R
 - `frontend/src/App.jsx` — Main IDE layout with Allotment resizable panels, multi-tab editor state, session persistence, keyboard shortcuts, error boundaries
 - `frontend/src/hooks/useWebSocket.js` — Real-time WebSocket connection with `sendPrompt` (fresh), `sendIterate` (follow-up), and `resetProject` (start over)
 - `frontend/src/components/` — UI components with neon dark theme, animations, glassmorphism:
-  - `TopBar` — Lucide Zap icon + "Rashi" gradient logo + v1.0 badge, Download/Settings lucide icons
+  - `TopBar` — Lucide Zap icon + "Rashi" gradient logo + v2.0 badge, file count badge, progress bar during generation, project stats tooltip, Download/Settings lucide icons
   - `Sidebar` — File explorer with lucide icons, search/filter, right-click context menus
   - `Chat` — Welcome screen with category-filtered prompts, templates, multi-turn iterate mode, file upload (button + drag-and-drop), "New Project" button, test result and UI/UX update message rendering
-  - `Editor` — Multi-tab Monaco Editor with theme-aware styling, Ctrl+S save
+  - `Editor` — Multi-tab Monaco Editor with theme-aware styling, Ctrl+S save, auto-save (2s debounce), minimap toggle, word wrap toggle
   - `Terminal` — xterm.js terminal with ANSI color support, clear button, scroll-to-bottom button
   - `Preview` — Responsive viewport toggles (Desktop/Tablet/Mobile), editable URL bar
   - `AgentStatus` — Pipeline timeline showing 7 stages (Plan → Design → Code → UI/UX → Debug → Test → Run), retry badge on debugger, staggered card animations
@@ -33,6 +33,7 @@ The system incorporates 70+ prompt files from leading AI coding tools (Cursor, R
   - `ErrorBoundary` — Per-panel crash isolation
   - `QuickOpen` — Ctrl+P file picker
   - `History` — Generation history with re-run
+  - `GlobalSearch` — Cross-file search with Ctrl+Shift+F, find/replace, results grouped by file with line numbers
   - `ContextMenu` — Right-click context menu
 
 ### API Endpoints
@@ -59,6 +60,7 @@ The system incorporates 70+ prompt files from leading AI coding tools (Cursor, R
 - `GET /api/preview/output/{project}` — Preview output logs
 - `GET /api/prompts` — List prompt sources
 - `GET /api/agents` — List agents with prompt info
+- `GET /api/search/{project}?q=query` — Search across project files (case-insensitive, max 100 results)
 - `WS /ws` — WebSocket for real-time generation and iteration
 
 ### WebSocket Actions
@@ -102,7 +104,11 @@ Prompts from: Anthropic/Claude, Cursor, Lovable, Replit, Devin, Windsurf, Manus,
 - **Responsive preview**: Desktop/Tablet/Mobile viewport toggles, editable URL path bar
 - **Pipeline timeline**: Visual progress indicator showing active pipeline stage
 - **File search**: Filter sidebar file tree by typing
-- **Keyboard shortcuts**: Ctrl+B (toggle sidebar), Ctrl+P (quick-open), Ctrl+W (close tab), Ctrl+S (save)
+- **Auto-save**: Editor auto-saves 2 seconds after you stop typing, with visual indicator
+- **Minimap and word wrap toggles**: Toggle editor minimap and word wrap, preferences persist
+- **Global search**: Search across all project files with Ctrl+Shift+F, find and replace
+- **Smart panel switching**: Auto-switches to terminal during build, to editor on file changes, to preview on completion
+- **Keyboard shortcuts**: Ctrl+B (toggle sidebar), Ctrl+P (quick-open), Ctrl+Shift+F (global search), Ctrl+W (close tab), Ctrl+S (save)
 - **Session persistence**: Active tabs, sidebar state, panel selection saved to localStorage
 - **Error boundaries**: Per-panel crash isolation
 - **Theme toggle**: Dark/Light mode, persists across sessions

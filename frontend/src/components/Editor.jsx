@@ -1,7 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import MonacoEditor from '@monaco-editor/react';
-import { X } from 'lucide-react';
+import { X, Map, WrapText } from 'lucide-react';
 import './Editor.css';
+
+function useLocalStorageBool(key, defaultValue) {
+  const [value, setValue] = useState(() => {
+    const stored = localStorage.getItem(key);
+    return stored !== null ? stored === 'true' : defaultValue;
+  });
+  const set = useCallback((v) => {
+    setValue(v);
+    localStorage.setItem(key, String(v));
+  }, [key]);
+  return [value, set];
+}
 
 const extToLanguage = {
   js: 'javascript',
@@ -43,6 +55,10 @@ function getLanguage(filename) {
 export default function Editor({ tabs, activeTabIndex, onTabChange, onTabClose, onContentChange, onSave, theme }) {
   const editorRef = useRef(null);
   const [saving, setSaving] = useState(false);
+  const [autoSaved, setAutoSaved] = useState(false);
+  const autoSaveTimerRef = useRef(null);
+  const [minimapEnabled, setMinimapEnabled] = useLocalStorageBool('editor-minimap', false);
+  const [wordWrapEnabled, setWordWrapEnabled] = useLocalStorageBool('editor-wordwrap', false);
 
   const activeTab = tabs[activeTabIndex] || null;
 
@@ -58,10 +74,38 @@ export default function Editor({ tabs, activeTabIndex, onTabChange, onTabClose, 
     }
   }, [activeTab, activeTabIndex, saving, onSave]);
 
+  const handleAutoSave = useCallback(async () => {
+    if (!activeTab || saving) return;
+    const isModified = activeTab.content !== activeTab.savedContent;
+    if (!isModified) return;
+    setSaving(true);
+    try {
+      await onSave(activeTabIndex);
+      setAutoSaved(true);
+      setTimeout(() => setAutoSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
+  }, [activeTab, activeTabIndex, saving, onSave]);
+
+  useEffect(() => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    if (!activeTab) return;
+    const isModified = activeTab.content !== activeTab.savedContent;
+    if (!isModified) return;
+    autoSaveTimerRef.current = setTimeout(() => {
+      handleAutoSave();
+    }, 2000);
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [activeTab?.content, activeTabIndex, handleAutoSave]);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
         handleSave();
       }
     };
@@ -125,6 +169,21 @@ export default function Editor({ tabs, activeTabIndex, onTabChange, onTabClose, 
           })}
         </div>
         <div className="editor-tab-actions">
+          {autoSaved && <span className="editor-autosave-indicator">Auto-saved</span>}
+          <button
+            className={`editor-toggle-btn${minimapEnabled ? ' active' : ''}`}
+            onClick={() => setMinimapEnabled(!minimapEnabled)}
+            title={minimapEnabled ? 'Hide Minimap' : 'Show Minimap'}
+          >
+            <Map size={14} />
+          </button>
+          <button
+            className={`editor-toggle-btn${wordWrapEnabled ? ' active' : ''}`}
+            onClick={() => setWordWrapEnabled(!wordWrapEnabled)}
+            title={wordWrapEnabled ? 'Disable Word Wrap' : 'Enable Word Wrap'}
+          >
+            <WrapText size={14} />
+          </button>
           <button
             className={`editor-save-btn${isModified ? ' has-changes' : ''}`}
             onClick={handleSave}
@@ -151,14 +210,14 @@ export default function Editor({ tabs, activeTabIndex, onTabChange, onTabClose, 
             onChange={(value) => onContentChange(activeTabIndex, value || '')}
             onMount={handleEditorDidMount}
             options={{
-              minimap: { enabled: false },
+              minimap: { enabled: minimapEnabled },
               fontSize: 13,
               fontFamily: "'Fira Code', 'Cascadia Code', Consolas, monospace",
               lineNumbers: 'on',
               scrollBeyondLastLine: false,
               automaticLayout: true,
               tabSize: 2,
-              wordWrap: 'off',
+              wordWrap: wordWrapEnabled ? 'on' : 'off',
               padding: { top: 8 },
               renderLineHighlight: 'line',
               cursorBlinking: 'smooth',

@@ -13,6 +13,7 @@ import Settings from './components/Settings';
 import ErrorBoundary from './components/ErrorBoundary';
 import QuickOpen from './components/QuickOpen';
 import History from './components/History';
+import GlobalSearch from './components/GlobalSearch';
 import { getStoredTheme, setStoredTheme } from './components/Settings';
 import './App.css';
 
@@ -183,6 +184,31 @@ export default function App() {
   }, [openTabs]);
 
   useEffect(() => {
+    if (ws.isGenerating) {
+      setRightPanel('terminal');
+    }
+  }, [ws.isGenerating]);
+
+  const wasGeneratingRef = useRef(false);
+  useEffect(() => {
+    if (ws.isGenerating) wasGeneratingRef.current = true;
+  }, [ws.isGenerating]);
+
+  useEffect(() => {
+    if (!ws.latestEvent) return;
+    if (!ws.isGenerating && !wasGeneratingRef.current) return;
+
+    const { type } = ws.latestEvent;
+
+    if (type === 'file_created' || type === 'file_updated') {
+      setActivePanel('editor');
+    } else if (type === 'complete' || type === 'iterate_complete') {
+      setRightPanel('preview');
+      wasGeneratingRef.current = false;
+    }
+  }, [ws.latestEvent, ws.isGenerating]);
+
+  useEffect(() => {
     const handleKeyDown = (e) => {
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key === 'b') {
@@ -191,6 +217,9 @@ export default function App() {
       } else if (mod && e.key === 'p') {
         e.preventDefault();
         setQuickOpenVisible(prev => !prev);
+      } else if (mod && e.shiftKey && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        setActivePanel('search');
       } else if (mod && e.key === 'w') {
         e.preventDefault();
         if (openTabs.length > 0 && activePanel === 'editor') {
@@ -259,6 +288,12 @@ export default function App() {
                   Agents
                 </button>
                 <button
+                  className={`tab ${activePanel === 'search' ? 'active' : ''}`}
+                  onClick={() => setActivePanel('search')}
+                >
+                  Search
+                </button>
+                <button
                   className={`tab ${activePanel === 'history' ? 'active' : ''}`}
                   onClick={() => setActivePanel('history')}
                 >
@@ -302,6 +337,14 @@ export default function App() {
                 {activePanel === 'agents' && (
                   <ErrorBoundary name="Agents">
                     <AgentStatus agents={ws.agents} />
+                  </ErrorBoundary>
+                )}
+                {activePanel === 'search' && (
+                  <ErrorBoundary name="Search">
+                    <GlobalSearch
+                      project={ws.currentProject}
+                      onFileSelect={handleFileSelect}
+                    />
                   </ErrorBoundary>
                 )}
                 {activePanel === 'history' && (

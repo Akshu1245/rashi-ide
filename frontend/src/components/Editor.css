@@ -163,7 +163,51 @@
   padding: 0 8px;
   display: flex;
   align-items: center;
+  gap: 6px;
   flex-shrink: 0;
+}
+
+@keyframes autoSaveFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes autoSaveFadeOut {
+  0% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.editor-autosave-indicator {
+  font-size: 11px;
+  color: #4caf50;
+  font-weight: 500;
+  animation: autoSaveFadeIn 0.3s ease, autoSaveFadeOut 2s ease forwards;
+  white-space: nowrap;
+}
+
+.editor-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.editor-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.editor-toggle-btn.active {
+  background: var(--accent, #6c63ff);
+  color: #fff;
+  border-color: var(--accent, #6c63ff);
 }
 
 .editor-breadcrumb {

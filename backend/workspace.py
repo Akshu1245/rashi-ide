@@ -137,3 +137,64 @@ def delete_file(project_name, file_path):
         os.remove(full_path)
         return True
     return False
+
+
+BINARY_EXTENSIONS = {
+    '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.svg',
+    '.woff', '.woff2', '.ttf', '.eot', '.otf',
+    '.zip', '.tar', '.gz', '.bz2', '.7z', '.rar',
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx',
+    '.mp3', '.mp4', '.avi', '.mov', '.wav',
+    '.exe', '.dll', '.so', '.dylib', '.o',
+    '.pyc', '.pyo', '.class', '.jar',
+}
+
+
+def search_files(project_name, query, case_sensitive=False):
+    project_path = _safe_project_path(project_name)
+    if not project_path or not os.path.isdir(project_path):
+        return None
+
+    results = []
+    max_results = 100
+
+    if not case_sensitive:
+        query_lower = query.lower()
+
+    for root, dirs, files in os.walk(project_path):
+        dirs[:] = [d for d in dirs if d != "node_modules" and not d.startswith(".")]
+        for fname in files:
+            if fname.startswith("."):
+                continue
+            ext = os.path.splitext(fname)[1].lower()
+            if ext in BINARY_EXTENSIONS:
+                continue
+
+            full = os.path.join(root, fname)
+            rel = os.path.relpath(full, project_path)
+
+            try:
+                with open(full, "r", encoding="utf-8", errors="ignore") as f:
+                    for line_num, line in enumerate(f, 1):
+                        line_stripped = line.rstrip('\n\r')
+                        if case_sensitive:
+                            if query in line_stripped:
+                                results.append({
+                                    "file": rel,
+                                    "line": line_num,
+                                    "text": line_stripped[:500],
+                                })
+                        else:
+                            if query_lower in line_stripped.lower():
+                                results.append({
+                                    "file": rel,
+                                    "line": line_num,
+                                    "text": line_stripped[:500],
+                                })
+
+                        if len(results) >= max_results:
+                            return results
+            except Exception:
+                continue
+
+    return results

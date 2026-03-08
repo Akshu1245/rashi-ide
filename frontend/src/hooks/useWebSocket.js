@@ -11,6 +11,7 @@ export function useWebSocket() {
   const [plan, setPlan] = useState(null);
   const [architecture, setArchitecture] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [latestEvent, setLatestEvent] = useState(null);
   const wsRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const mountedRef = useRef(true);
@@ -91,6 +92,8 @@ export function useWebSocket() {
 
   const handleMessage = useCallback(async (msg) => {
     const { type, data } = msg;
+
+    setLatestEvent({ type, data, time: Date.now() });
 
     switch (type) {
       case 'status':
@@ -249,6 +252,7 @@ export function useWebSocket() {
     plan,
     architecture,
     isGenerating,
+    latestEvent,
     sendPrompt,
     sendIterate,
     refreshFileTree,

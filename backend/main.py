@@ -265,6 +265,16 @@ async def project_stats(name: str):
     }
 
 
+@app.get("/api/search/{project}")
+async def search_files(project: str, q: str = "", case_sensitive: bool = False):
+    if not q:
+        return {"results": []}
+    results = workspace.search_files(project, q, case_sensitive)
+    if results is None:
+        return JSONResponse(status_code=404, content={"error": "Project not found"})
+    return {"results": results, "query": q, "total": len(results)}
+
+
 @app.get("/api/prompts")
 async def list_prompts():
     return {"sources": get_all_prompt_sources()}
